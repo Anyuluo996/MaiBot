@@ -79,7 +79,7 @@ class SQLiteConnectionManager:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA synchronous=NORMAL")
-        connection.execute("PRAGMA cache_size=-64000")
+        connection.execute("PRAGMA cache_size=-8000")  # 8MB；检索走 FTS5/倒排索引，无需大页缓存
         connection.execute("PRAGMA temp_store=MEMORY")
         connection.execute("PRAGMA foreign_keys = ON")
         return connection

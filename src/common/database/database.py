@@ -40,7 +40,7 @@ def set_sqlite_pragma(dbapi_connection: "SQLite3Connection", connection_record):
     """
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA cache_size=-64000")  # 负值表示KB,64000KB = 64MB
+    cursor.execute("PRAGMA cache_size=-8000")  # 负值表示KB,8000KB = 8MB；大表均有时间戳索引，热路径走内存缓存，64MB 页缓存过大
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA busy_timeout=1000")  # 1秒超时
