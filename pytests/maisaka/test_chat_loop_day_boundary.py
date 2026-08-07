@@ -1,12 +1,36 @@
-"""Maisaka Planner 跨日时间提示测试。"""
+"""Maisaka Planner 跨日时间提示测试。
+
+本测试验证的是「缓存优化关闭时」的原始跨日时间消息行为。
+缓存优化（remove_inline_time）默认开启时会移除这些消息，
+所以测试需要显式关闭该选项才能验证旧行为。
+"""
 
 from datetime import datetime
 from typing import List
 
+import pytest
+
+from src.config.config import global_config
 from src.llm_models.payload_content.message import Message, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka.chat_loop_service import MaisakaChatLoopService
 from src.maisaka.context.messages import AssistantMessage, LLMContextMessage, ReferenceMessage, ToolResultMessage
+
+
+@pytest.fixture(autouse=True)
+def _disable_cache_optimization_for_legacy_behavior():
+    """临时关闭缓存优化，让本测试验证原始跨日时间消息和参考消息行为。"""
+
+    original_remove = global_config.chat.cache_optimization.remove_inline_time
+    original_move = global_config.chat.cache_optimization.move_references_to_tail
+    original_precision = global_config.chat.cache_optimization.time_precision
+    global_config.chat.cache_optimization.remove_inline_time = False
+    global_config.chat.cache_optimization.move_references_to_tail = False
+    global_config.chat.cache_optimization.time_precision = "second"
+    yield
+    global_config.chat.cache_optimization.remove_inline_time = original_remove
+    global_config.chat.cache_optimization.move_references_to_tail = original_move
+    global_config.chat.cache_optimization.time_precision = original_precision
 
 
 def _build_history_messages(history: List[LLMContextMessage]) -> List[Message]:
