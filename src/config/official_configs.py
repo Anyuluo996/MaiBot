@@ -810,6 +810,94 @@ class ChatReplyStyleConfig(ConfigBase):
     """给指定群聊或私聊额外补充聊天要求；有特殊群规或语气要求时再加。"""
 
 
+class ChatCacheOptimizationConfig(ConfigBase):
+    """上下文缓存优化配置类。
+
+    通过稳定 prompt 前缀、降低时间戳精度、收敛动态内容到尾部，
+    提升 Provider 隐式前缀缓存的命中率，降低 token 消耗和延迟。
+    """
+
+    __ui_label__ = "缓存优化"
+    __ui_icon__ = "gauge"
+    __ui_order__ = 30
+
+    enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用缓存优化",
+                "en_US": "Enable cache optimization",
+                "ja_JP": "キャッシュ最適化を有効化",
+            },
+            "x-widget": "switch",
+            "x-row": "cache-opt-switches",
+        },
+    )
+    """总开关；关闭后下方各项均不生效，回退到原始上下文构造逻辑。"""
+
+    time_precision: Literal["second", "minute", "hour", "day"] = Field(
+        default="minute",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "时间戳精度",
+                "en_US": "Timestamp precision",
+                "ja_JP": "タイムスタンプ精度",
+            },
+            "x-widget": "select",
+            "x-row": "cache-opt-controls",
+            "options": [
+                {"label": "秒（原始）", "value": "second"},
+                {"label": "分钟（推荐）", "value": "minute"},
+                {"label": "小时", "value": "hour"},
+                {"label": "仅日期", "value": "day"},
+            ],
+        },
+    )
+    """planner 和 replyer 的时间戳保留精度；精度越低，同时间段内前缀越稳定。"""
+
+    stable_window: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "稳定窗口起点",
+                "en_US": "Stable window start",
+                "ja_JP": "安定ウィンドウ起点",
+            },
+            "x-widget": "switch",
+            "x-row": "cache-opt-switches",
+        },
+    )
+    """启用后 planner 的上下文窗口起点跨轮次保持稳定，只在溢出时前移。"""
+
+    move_references_to_tail: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "参考消息移到尾部",
+                "en_US": "Move references to tail",
+                "ja_JP": "参考メッセージを末尾へ",
+            },
+            "x-widget": "switch",
+            "x-row": "cache-opt-switches",
+        },
+    )
+    """把黑话、聊天回想等参考消息从历史中间移到尾部，让真实对话形成稳定前缀。"""
+
+    remove_inline_time: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "移除历史中间时间消息",
+                "en_US": "Remove inline time messages",
+                "ja_JP": "履歴内の時間メッセージを削除",
+            },
+            "x-widget": "switch",
+            "x-row": "cache-opt-switches",
+        },
+    )
+    """移除 planner 历史中间的跨日时间提示消息，让历史连续。"""
+
+
 class ChatConfig(ConfigBase):
     """聊天配置类"""
 
@@ -914,6 +1002,18 @@ class ChatConfig(ConfigBase):
 
     reply_style: ChatReplyStyleConfig = Field(default_factory=ChatReplyStyleConfig)
     """如何回复、引用回复与聊天 Prompt 配置。"""
+
+    cache_optimization: ChatCacheOptimizationConfig = Field(
+        default_factory=ChatCacheOptimizationConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "缓存优化",
+                "en_US": "Cache optimization",
+                "ja_JP": "キャッシュ最適化",
+            },
+        },
+    )
+    """上下文缓存优化；通过稳定 prompt 前缀提升 Provider 缓存命中率。"""
 
 
 class AttentionDriftConfig(ConfigBase):
