@@ -562,6 +562,9 @@ class MaisakaChatLoopService:
         self._custom_chat_system_prompt = chat_system_prompt
         self._prompt_load_lock = asyncio.Lock()
         self._llm_chat_clients: dict[str, LLMServiceClient] = {}
+        # 稳定窗口起点索引：缓存优化启用时，planner 路径跨轮次保持窗口起点稳定，
+        # 只在窗口溢出时前移，让 Provider 隐式前缀缓存能命中。
+        self._stable_window_start: int | None = None
 
     @property
     def behavior_style_prompt(self) -> str:
@@ -1155,8 +1158,8 @@ class MaisakaChatLoopService:
             native_tool_calls=list(generation_result.native_tool_calls),
         )
 
-    @staticmethod
     def select_llm_context_messages(
+        self,
         chat_history: List[LLMContextMessage],
         *,
         enable_visual_message: Optional[bool] = None,
@@ -1164,7 +1167,12 @@ class MaisakaChatLoopService:
         max_context_size: Optional[int] = None,
         is_group_chat: Optional[bool] = None,
     ) -> tuple[List[LLMContextMessage], str]:
-        """选择LLM上下文消息"""
+        """选择 LLM 上下文消息。
+
+        缓存优化启用且 request_kind=="planner" 时走稳定窗口模式：
+        窗口起点跨轮次保持稳定，只在溢出时前移，让 Provider 隐式前缀缓存能命中。
+        其他路径（子代理、单次请求）走原始的无状态倒序选逻辑。
+        """
 
         filtered_history = MaisakaChatLoopService._filter_history_for_request_kind(
             chat_history,
@@ -1175,8 +1183,6 @@ class MaisakaChatLoopService:
             base_context_size,
             int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
         )
-        selected_indices: List[int] = []
-        counted_message_count = 0
 
         active_enable_visual_message = (
             enable_visual_message
@@ -1188,22 +1194,27 @@ class MaisakaChatLoopService:
             enable_visual_message=active_enable_visual_message,
         )
 
-        for index in range(len(filtered_history) - 1, -1, -1):
-            message = filtered_history[index]
-            if (
-                build_llm_message_from_context(
-                    message,
-                    enable_visual_message=active_enable_visual_message,
-                )
-                is None
-            ):
-                continue
+        cache_opt = global_config.chat.cache_optimization
+        use_stable_window = (
+            cache_opt.enabled
+            and cache_opt.stable_window
+            and request_kind == "planner"
+        )
 
-            selected_indices.append(index)
-            if message.count_in_context:
-                counted_message_count += 1
-                if counted_message_count >= effective_context_size:
-                    break
+        if use_stable_window:
+            selected_indices = self._select_with_stable_window(
+                filtered_history,
+                effective_context_size,
+                active_enable_visual_message,
+            )
+            window_mode = "stable"
+        else:
+            selected_indices = MaisakaChatLoopService._select_tail_indices(
+                filtered_history,
+                effective_context_size,
+                active_enable_visual_message,
+            )
+            window_mode = "tail"
 
         selected_indices = sorted({*always_selected_indices, *selected_indices})
 
@@ -1214,7 +1225,7 @@ class MaisakaChatLoopService:
         selected_history, _ = normalize_tool_call_result_pairs(selected_history)
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
-        stability_text = f"|cache_window {base_context_size}->{effective_context_size}"
+        stability_text = f"|cache_window {base_context_size}->{effective_context_size}|{window_mode}"
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
             f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
@@ -1224,6 +1235,104 @@ class MaisakaChatLoopService:
             selected_history,
             selection_reason,
         )
+
+    def _select_with_stable_window(
+        self,
+        filtered_history: List[LLMContextMessage],
+        effective_context_size: int,
+        enable_visual_message: bool,
+    ) -> List[int]:
+        """稳定窗口起点选消息。
+
+        首次调用时从尾部倒序选满 effective_context_size 确定起点索引。
+        后续调用起点不变，从起点到尾部全选（窗口随历史增长）。
+        当窗口超过 2*effective_context_size 时，起点前移到使尾部计数 == effective_context_size。
+        """
+
+        history_len = len(filtered_history)
+        if history_len == 0:
+            return []
+
+        # 首次：确定初始起点（倒序选满 effective_context_size）。
+        if self._stable_window_start is None:
+            self._stable_window_start = MaisakaChatLoopService._compute_tail_start(
+                filtered_history,
+                effective_context_size,
+                enable_visual_message,
+            )
+
+        start = self._stable_window_start
+
+        # 窗口溢出时前移起点：从当前起点到尾部计数超过 2*effective_context_size，
+        # 重新计算起点使尾部正好 effective_context_size 条计数消息。
+        counted_from_start = 0
+        for idx in range(start, history_len):
+            msg = filtered_history[idx]
+            if build_llm_message_from_context(msg, enable_visual_message=enable_visual_message) is None:
+                continue
+            if msg.count_in_context:
+                counted_from_start += 1
+
+        if counted_from_start > effective_context_size * 2:
+            self._stable_window_start = MaisakaChatLoopService._compute_tail_start(
+                filtered_history,
+                effective_context_size,
+                enable_visual_message,
+            )
+            start = self._stable_window_start
+
+        # 从稳定起点到尾部全选（跳过无法构建的消息）。
+        selected: List[int] = []
+        for idx in range(start, history_len):
+            msg = filtered_history[idx]
+            if build_llm_message_from_context(msg, enable_visual_message=enable_visual_message) is None:
+                continue
+            selected.append(idx)
+
+        return selected
+
+    @staticmethod
+    def _compute_tail_start(
+        filtered_history: List[LLMContextMessage],
+        effective_context_size: int,
+        enable_visual_message: bool,
+    ) -> int:
+        """从尾部倒序选满 effective_context_size 条计数消息，返回起始索引。"""
+
+        counted = 0
+        history_len = len(filtered_history)
+        start = history_len  # 默认从末尾（空窗口）
+        for index in range(history_len - 1, -1, -1):
+            message = filtered_history[index]
+            if build_llm_message_from_context(message, enable_visual_message=enable_visual_message) is None:
+                continue
+            start = index
+            if message.count_in_context:
+                counted += 1
+                if counted >= effective_context_size:
+                    break
+        return start
+
+    @staticmethod
+    def _select_tail_indices(
+        filtered_history: List[LLMContextMessage],
+        effective_context_size: int,
+        enable_visual_message: bool,
+    ) -> List[int]:
+        """原始无状态倒序选逻辑（子代理/单次请求路径使用）。"""
+
+        selected_indices: List[int] = []
+        counted_message_count = 0
+        for index in range(len(filtered_history) - 1, -1, -1):
+            message = filtered_history[index]
+            if build_llm_message_from_context(message, enable_visual_message=enable_visual_message) is None:
+                continue
+            selected_indices.append(index)
+            if message.count_in_context:
+                counted_message_count += 1
+                if counted_message_count >= effective_context_size:
+                    break
+        return selected_indices
 
     @staticmethod
     def _collect_always_selected_reference_indices(

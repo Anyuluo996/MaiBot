@@ -1345,7 +1345,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     ) -> ChatResponse:
         """运行一个复制上下文的临时子代理，并在完成后立即销毁。"""
 
-        selected_history, _ = MaisakaChatLoopService.select_llm_context_messages(
+        selected_history, _ = self._chat_loop_service.select_llm_context_messages(
             self._chat_history,
             request_kind=request_kind,
             max_context_size=context_message_limit,
