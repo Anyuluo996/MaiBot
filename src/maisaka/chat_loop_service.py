@@ -853,9 +853,14 @@ class MaisakaChatLoopService:
         messages.append(system_msg.build())
 
         cache_opt = global_config.chat.cache_optimization
-        cache_opt_enabled = cache_opt.enabled and cache_opt.remove_inline_time
         # 缓存优化启用时，跳过历史中间的跨日时间消息，让真实对话连续形成稳定前缀。
+        cache_opt_enabled = cache_opt.enabled and cache_opt.remove_inline_time
         effective_include_day_boundary = include_day_boundary_time_messages and not cache_opt_enabled
+
+        # 缓存优化启用时，把 ReferenceMessage 从历史中间挑出来集中放到尾部，
+        # 让 [system + 真实对话] 形成纯净稳定前缀。
+        move_refs_to_tail = cache_opt.enabled and cache_opt.move_references_to_tail
+        deferred_reference_messages: List[Message] = []
 
         previous_context_timestamp: datetime | None = None
         deferred_boundary_timestamps: List[datetime] = []
@@ -865,6 +870,12 @@ class MaisakaChatLoopService:
                 enable_visual_message=enable_visual_message,
             )
             if llm_message is None:
+                continue
+
+            # 参考消息延后到尾部，不插入历史中段。
+            if move_refs_to_tail and isinstance(msg, ReferenceMessage):
+                deferred_reference_messages.append(llm_message)
+                previous_context_timestamp = msg.timestamp
                 continue
 
             # assistant tool_calls 与其连续 tool 结果是协议原子段，跨日时间提示必须延后到整个结果段之后。
@@ -888,6 +899,10 @@ class MaisakaChatLoopService:
 
         for boundary_timestamp in deferred_boundary_timestamps:
             self._append_time_user_message(messages, boundary_timestamp)
+
+        # 把挑出来的参考消息集中追加到尾部（在 injected 动态内容之前）。
+        if deferred_reference_messages:
+            messages.extend(deferred_reference_messages)
 
         normalized_injected_messages: List[Message] = []
         current_chat_attention = self._build_current_chat_attention_tail_message()
