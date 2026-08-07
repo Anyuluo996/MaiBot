@@ -598,7 +598,18 @@ class BaseMaisakaReplyGenerator:
         keywords_reaction_prompt: str = "",
         reply_tool_args: Optional[Dict[str, Any]] = None,
     ) -> str:
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cache_opt = global_config.chat.cache_optimization
+        if cache_opt.enabled:
+            precision = cache_opt.time_precision
+            fmt = {
+                "second": "%Y-%m-%d %H:%M:%S",
+                "minute": "%Y-%m-%d %H:%M",
+                "hour": "%Y-%m-%d %H:00",
+                "day": "%Y-%m-%d",
+            }.get(precision, "%Y-%m-%d %H:%M:%S")
+        else:
+            fmt = "%Y-%m-%d %H:%M:%S"
+        current_time = datetime.now().strftime(fmt)
         sections: List[str] = [f"当前时间：{current_time}"]
         target_message_block = self._build_target_message_block(reply_message)
         if target_message_block:

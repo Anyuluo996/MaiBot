@@ -76,6 +76,15 @@ PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE = (
     "我需要输出对{bot_name}发言的分析，视情况输出文本内容的分析，思考是否进行工具调用"
 )
 
+# 时间戳精度 → strftime 格式的映射，用于缓存优化时降低时间精度。
+# 精度越低，同一时间段内的时间提示越稳定，越容易命中 Provider 前缀缓存。
+_TIME_PRECISION_FORMATS: dict[str, str] = {
+    "second": "%Y-%m-%d %H:%M:%S",
+    "minute": "%Y-%m-%d %H:%M",
+    "hour": "%Y-%m-%d %H:00",
+    "day": "%Y-%m-%d",
+}
+
 
 @dataclass(slots=True)
 class ChatResponse:
@@ -703,7 +712,12 @@ class MaisakaChatLoopService:
     def _build_time_user_message(timestamp: datetime) -> str:
         """构建统一格式的时间提示消息。"""
 
-        return f"时间：{timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+        precision = global_config.chat.cache_optimization.time_precision
+        if global_config.chat.cache_optimization.enabled and precision != "second":
+            fmt = _TIME_PRECISION_FORMATS.get(precision, "%Y-%m-%d %H:%M:%S")
+        else:
+            fmt = "%Y-%m-%d %H:%M:%S"
+        return f"时间：{timestamp.strftime(fmt)}"
 
     @staticmethod
     def _build_current_time_user_message() -> str:
@@ -838,6 +852,11 @@ class MaisakaChatLoopService:
         system_msg.add_text_content(resolved_system_prompt)
         messages.append(system_msg.build())
 
+        cache_opt = global_config.chat.cache_optimization
+        cache_opt_enabled = cache_opt.enabled and cache_opt.remove_inline_time
+        # 缓存优化启用时，跳过历史中间的跨日时间消息，让真实对话连续形成稳定前缀。
+        effective_include_day_boundary = include_day_boundary_time_messages and not cache_opt_enabled
+
         previous_context_timestamp: datetime | None = None
         deferred_boundary_timestamps: List[datetime] = []
         for msg in selected_history:
@@ -855,7 +874,7 @@ class MaisakaChatLoopService:
                 deferred_boundary_timestamps.clear()
 
             if (
-                include_day_boundary_time_messages
+                effective_include_day_boundary
                 and previous_context_timestamp is not None
                 and previous_context_timestamp.date() != msg.timestamp.date()
             ):
