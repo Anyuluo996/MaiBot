@@ -12,6 +12,7 @@ import tempfile
 
 _FORMAT_TO_MIME = {
     "BMP": "image/bmp",
+    "GIF": "image/gif",
     "JPEG": "image/jpeg",
     "PNG": "image/png",
     "WEBP": "image/webp",

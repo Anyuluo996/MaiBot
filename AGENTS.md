@@ -41,8 +41,17 @@ Webui页面优先使用公共组件库内已有的元素，如果无法满足需
 https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
 
 如果你要编写插件，不要改动根目录的.gitignore，而是在/plugins下创建独立仓库，然后进行编写
-如果你要编写插件有需求需要改动主程序代码，请你先请求许可。
+主程序（宿主 src/）已转由维护者自行维护（2026-11-11 起，watchtower 自动更新已停用）：改动主程序代码无需请求许可，直接改并自行验证。上 wo4 的路径 = 「本地补丁 → bind-mount（当前镜像期）→ 升级镜像时收编进仓库」；升级镜像前先核对三个 bind-mount 补丁是否已被上游吸收（plugin_runtime/component_query.py 收窄补丁、plugin_runtime/transport/base.py 的 MAIBOT_RPC_MAX_FRAME_MB、A_memorix/core/image/asset_store.py GIF compose），未吸收的补丁要重新适配。
 如果要提交maibot插件，请参考 https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
+
+# 插件 BLOCKING 钩子 modified_kwargs 规范
+宿主对 BLOCKING 钩子的 `modified_kwargs` 是**整体替换 + 链式传递**（`hook_dispatcher._merge_blocking_result`）。任何订阅者返回缺键的 modified_kwargs，都会让排在后面的其他插件钩子收到缺键载荷、静默失效（零日志零报错），历史上已三次真实事故（prompt-guard ×2、ov-memory ×1）。因此：
+
+- 返回 `modified_kwargs` 时构造必须包含 `**kwargs`（`dict(kwargs)` 或 `{..., **kwargs}`）；
+- 函数签名具名参数吸收的键（`items`、`session_id` 等）不会进入 `**kwargs`，必须显式放回：`{"items": items, "session_id": session_id, **kwargs}`；
+- 不修改参数时返回 `{"action": "continue"}`，不带 `modified_kwargs`。
+
+改动任何含 `HookHandler` 的插件代码后，必须跑 `python scripts/check_blocking_hook_kwargs.py plugins`，0 ERROR 才算过（WARN 是 helper 封装等静态无法穿透的场景，人工核对）。详见 `docs/插件开发指南.md` 的「处理器返回值」。
 
 # changelog编写
 建议分为两部分，一部分是主要功能，一部分是细节（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
