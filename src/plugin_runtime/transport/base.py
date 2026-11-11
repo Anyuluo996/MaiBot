@@ -9,13 +9,18 @@
 
 import asyncio
 import contextlib
+import os
 import struct
 from abc import ABC, abstractmethod
 from typing import Awaitable, Callable
 
 # 分帧常量
 FRAME_HEADER_SIZE = 4  # 4 字节长度前缀
-MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MB 最大帧大小
+# 最大帧大小：默认 16 MB，可用环境变量 MAIBOT_RPC_MAX_FRAME_MB 调整。
+# 大图会话下经 items 的 hook 载荷（base64 图片内联）会超过 16MB，
+# 导致 planner/replyer 侧 Hook 分发整体失败（帧大小超限）。
+# wo4 现以 bind-mount 补丁部署同款改动；本文件收编后升级镜像时补丁可退场。
+MAX_FRAME_SIZE = int(os.environ.get("MAIBOT_RPC_MAX_FRAME_MB", "16")) * 1024 * 1024
 
 
 class ConnectionClosed(Exception):

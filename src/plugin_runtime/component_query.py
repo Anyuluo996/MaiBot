@@ -9,6 +9,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tuple, cast
 
+import hashlib
+import hmac
+import os
+
 from src.common.logger import get_logger
 from src.core.local_operator import is_local_operator
 from src.core.plugin_usage import can_use_plugin
@@ -34,6 +38,29 @@ logger = get_logger("plugin_runtime.component_query")
 
 CommandExecutor = Callable[..., Awaitable[Tuple[bool, Optional[str], bool]]]
 ToolExecutor = Callable[..., Awaitable[Any]]
+
+# 身份/会话保留键：模型参数里出现这些键时不可信（参数由模型构造，见 _executor 注释）。
+# 工具未声明这些参数时一律以宿主上下文强制覆盖，防止伪造越权；已声明的键保留模型值
+# （如 napcat 禁言目标 user_id），行为与收窄前一致。
+_RESERVED_CONTEXT_KEYS = ("stream_id", "chat_id", "group_id", "user_id", "platform")
+
+# 宿主信任令牌密钥环境变量：宿主与 Runner 同容器共享 env。任一侧缺失即视为补丁未生效，
+# 插件侧对令牌校验 fail-closed（watchtower 换镜像丢补丁时相关工具自动停用，不带病运行）。
+_HOST_TRUST_SECRET_ENV = "HOST_TRUST_SECRET"
+
+
+def _trust_token(stream_id: str) -> str:
+    """计算绑定 stream_id 的宿主信任令牌（HMAC-SHA256）。
+
+    密钥未注入或 stream_id 为空时返回空串，表示补丁未生效；
+    插件侧用同一密钥对宿主注入的 stream_id 重算并 compare_digest 比对。
+    """
+
+    secret = os.environ.get(_HOST_TRUST_SECRET_ENV, "").strip()
+    if not secret or not stream_id:
+        return ""
+    return hmac.new(secret.encode("utf-8"), stream_id.encode("utf-8"), hashlib.sha256).hexdigest()
+
 
 _HOST_COMPONENT_TYPE_MAP: Dict[ComponentType, str] = {
     ComponentType.COMMAND: "COMMAND",
@@ -598,6 +625,7 @@ class ComponentQueryService:
         context: Optional[ToolExecutionContext],
         *,
         legacy_action: bool = False,
+        tool_entry: Optional["ToolEntry"] = None,
     ) -> Dict[str, Any]:
         """构造插件工具执行时发送给 Runner 的参数。
 
@@ -605,6 +633,9 @@ class ComponentQueryService:
             invocation: 统一工具调用请求。
             context: 统一工具执行上下文。
             legacy_action: 是否补齐旧 Action 所需的参数。
+            tool_entry: 目标工具条目；提供时启用保留键收窄覆盖与 ``_ctx_trusted`` 令牌注入
+                （handler 契约：插件工具必须收 ``**kwargs``，与既有 ``stream_id``/``chat_id``
+                无条件注入相同通道）。旧 Action 执行器路径不传该参数，行为不变。
 
         Returns:
             Dict[str, Any]: 发往 Runner 的参数字典。
@@ -612,9 +643,28 @@ class ComponentQueryService:
 
         payload = dict(invocation.arguments)
         context_payload = ComponentQueryService._build_tool_context_payload(context)
-        for key, value in context_payload.items():
-            if key not in payload or not payload.get(key):
-                payload[key] = value
+        if tool_entry is not None:
+            # 保留键收窄覆盖：未声明的身份/会话键强制以宿主值覆盖（防模型伪造越权），
+            # 已声明键保留模型值；其余上下文键维持「缺失或空值时填充」语义。
+            declared = {p.get("name") for p in tool_entry.parameters}
+            if isinstance(tool_entry.parameters_raw, dict):
+                declared |= set(tool_entry.parameters_raw.get("properties", {}).keys())
+            for key, value in context_payload.items():
+                if key in _RESERVED_CONTEXT_KEYS:
+                    if key not in declared:
+                        payload[key] = value
+                elif key not in payload or not payload.get(key):
+                    payload[key] = value
+            # 宿主信任令牌：绑定最终 stream_id，无条件写入；密钥未注入或 stream_id 为空
+            # 时不写，插件侧缺令牌一律 fail-closed（视为补丁未生效）。
+            payload_stream_id = str(payload.get("stream_id") or "").strip()
+            token = _trust_token(payload_stream_id)
+            if token:
+                payload["_ctx_trusted"] = token
+        else:
+            for key, value in context_payload.items():
+                if key not in payload or not payload.get(key):
+                    payload[key] = value
         if legacy_action:
             # 旧插件通过 action_data 接收业务参数，通过 chat_id 定位聊天流。
             stream_id = str(context_payload.get("stream_id") or invocation.stream_id).strip()
@@ -766,7 +816,7 @@ class ComponentQueryService:
                 error_message="当前平台不在插件工具的 platforms 作用域内。",
             )
         invoke_payload = self._build_tool_invocation_payload(
-            invocation, context, legacy_action=tool_entry.is_legacy_action
+            invocation, context, legacy_action=tool_entry.is_legacy_action, tool_entry=tool_entry
         )
 
         from src.files.service import get_file_service
