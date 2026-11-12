@@ -1,3 +1,6 @@
 Input type: {image_type}
-This is an emoji or sticker image. When the input type is GIF, the image is a horizontal strip of distinct frames extracted from an animation; when the input type is STATIC, it is a single static image.
+First decide whether this image is an emoji or meme sticker. A sticker means a cartoon or hand-drawn figure, a doodle, a meme, or a captioned funny image suitable to send as a sticker in chat.
+Game or app UI screenshots, real-life photos, QR codes, payment QR codes, barcodes, chat-record screenshots, and web page or document screenshots are NOT stickers.
+If it is not a sticker, return a single line "NOT_EMOJI: <a short description of the image content>" with no more than 10 words, and nothing else.
+If it is a sticker: when the input type is GIF, the image is a horizontal strip of distinct frames extracted from an animation; when the input type is STATIC, it is a single static image.
 Extract up to 5 tags describing the main emotion, tone, or common usage scenario. Separate the tags with commas. Return only the plain-text tag list, without explanations or any other content.

@@ -34,9 +34,24 @@ install(extra_lines=3)
 PROJECT_ROOT = get_instance_root()
 DATA_DIR = PROJECT_ROOT / "data"
 EmojiRegisterStatus = Literal["registered", "skipped", "failed"]
+EmojiDescriptionStatus = Literal["ok", "not_emoji", "failed"]
 EMOJI_DIR = DATA_DIR / "emoji"  # 表情包存储目录
 MAX_EMOJI_FOR_PROMPT = 20  # 最大允许的表情包描述数量于图片替换的 prompt 中
 BYTES_PER_MIB = 1024 * 1024
+
+# 描述模型对非表情包内容（截图、收款码等）的固定拒绝标记，配套 prompt 使用
+NON_EMOJI_MARK_PATTERN = re.compile(r"not[\s_]*emoji", re.IGNORECASE)
+DEFAULT_NON_EMOJI_NOTE = "非表情包图片"
+
+
+def _split_non_emoji_description(raw_description: str) -> Optional[str]:
+    """解析描述模型返回的非表情包标记；命中时返回内容简述（可能为空字符串）。"""
+    normalized = raw_description.strip()
+    match = NON_EMOJI_MARK_PATTERN.search(normalized)
+    if not match:
+        return None
+    remainder = normalized[match.end():].strip(" ：:，,；;、\t ")
+    return remainder
 
 
 def register_emoji_hook_specs(registry: HookSpecRegistry) -> list[HookSpec]:
@@ -471,8 +486,13 @@ class EmojiManager:
         # logger.info(f"Start building cached emoji description, hash={emoji_hash}")
         new_emoji = await self.ensure_emoji_saved(emoji_bytes, emoji_hash=emoji_hash)
 
-        success_desc, new_emoji = await self.build_emoji_description(new_emoji, session_id=session_id)
-        if not success_desc:
+        build_status, new_emoji = await self.build_emoji_description(new_emoji, session_id=session_id)
+        if build_status == "not_emoji":
+            # 非表情包内容（截图、收款码等）：仅保留描述作为聊天上下文与缓存，
+            # 移除候选文件避免被维护任务注册。
+            self._discard_non_emoji_file(new_emoji)
+            return new_emoji.description, _get_emoji_emotions(new_emoji)
+        if build_status != "ok":
             logger.error("Build emoji description failed")
             return None
 
@@ -975,35 +995,42 @@ class EmojiManager:
             return False
         return True
 
-    async def build_emoji_description(self, target_emoji: MaiEmoji, *, session_id: str = "") -> tuple[bool, MaiEmoji]:
+    async def build_emoji_description(self, target_emoji: MaiEmoji, *, session_id: str = "") -> tuple[EmojiDescriptionStatus, MaiEmoji]:
         """
-        构建表情包描述
+        构建表情包描述，同时判断图片是否真的属于表情包
 
         Args:
             target_emoji (MaiEmoji): 目标表情包对象
         Returns:
-            return (Tuple[bool, MaiEmoji]): 返回是否成功构建描述，及表情包对象
+            return (Tuple[EmojiDescriptionStatus, MaiEmoji]): 返回构建结果状态（``ok``/``not_emoji``/``failed``）及表情包对象；
+                ``not_emoji`` 时 ``description`` 已改写为内容简述
         """
         if not _is_vlm_task_configured():
             logger.info(
                 f"[构建描述] 未配置 VLM 模型，跳过表情包识别和打标签: {target_emoji.file_name}"
             )
-            return False, target_emoji
+            return "failed", target_emoji
 
         try:
             description = await self.analyze_emoji_image(target_emoji, "emoji_content_analysis", session_id=session_id)
         except Exception as e:
             logger.error(f"[构建描述] 调用视觉模型生成表情包描述时出错: {e}")
-            return False, target_emoji
-
-        if not description:
-            logger.warning(f"[构建描述] 视觉模型返回空描述，跳过注册: {target_emoji.file_name}")
-            return False, target_emoji
+            return "failed", target_emoji
 
         normalized_description = str(description).strip()
         if not normalized_description:
-            logger.warning(f"[构建描述] 视觉模型返回空标签，跳过注册: {target_emoji.file_name}")
-            return False, target_emoji
+            logger.warning(f"[构建描述] 视觉模型返回空描述，跳过注册: {target_emoji.file_name}")
+            return "failed", target_emoji
+
+        non_emoji_note = _split_non_emoji_description(normalized_description)
+        if non_emoji_note is not None:
+            # 边界判定：截图、收款码等非表情包内容不进入注册流程
+            target_emoji.description = non_emoji_note or DEFAULT_NON_EMOJI_NOTE
+            logger.info(
+                f"[构建描述] 判定为非表情包内容，跳过注册: {target_emoji.file_name}（{target_emoji.description}）"
+            )
+            return "not_emoji", target_emoji
+
         hook_result = await _get_runtime_manager().invoke_hook(
             "emoji.register.after_build_description",
             emoji=_serialize_emoji_for_hook(target_emoji),
@@ -1017,17 +1044,17 @@ class EmojiManager:
         normalized_description = str(hook_result.kwargs.get("description", description) or "").strip()
         if not normalized_description:
             logger.warning(f"[构建描述] Hook 返回空描述，拒绝注册: {target_emoji.file_name}")
-            return False, target_emoji
+            return "failed", target_emoji
 
         normalized_emotions = _normalize_emoji_tag_text(normalized_description)
         if not normalized_emotions:
             logger.warning(f"[构建描述] Hook 返回标签为空，拒绝注册: {target_emoji.file_name}")
-            return False, target_emoji
+            return "failed", target_emoji
 
         target_emoji.description = ",".join(normalized_emotions)
         target_emoji.emotion = normalized_emotions
         logger.info(f"理解表情包情绪: {target_emoji.description}")
-        return True, target_emoji
+        return "ok", target_emoji
 
     async def analyze_emoji_image(self, emoji: MaiEmoji, prompt_name: str, *, session_id: str = "") -> str:
         """为描述与分组标签共用静态图和 GIF 抽帧流程。"""
@@ -1045,6 +1072,35 @@ class EmojiManager:
             prompt, image_base64, "jpg" if image_format == "gif" else image_format, session_id=session_id,
         )
         return result.response
+
+    def _discard_non_emoji_file(self, target_emoji: MaiEmoji) -> None:
+        """非表情包图片落盘处置：移除候选文件并把记录转为描述缓存。
+
+        移除文件让维护扫描不再看到该候选；记录置 ``vlm_processed``，
+        即使文件删除失败也不会被反复注册，同时保留描述供后续聊天命中。
+        """
+        if not target_emoji.file_hash:
+            return
+
+        try:
+            target_emoji.full_path.unlink(missing_ok=True)
+        except Exception as exc:
+            logger.warning(f"[构建描述] 移除非表情包候选文件失败: {target_emoji.full_path}，错误: {exc}")
+
+        try:
+            with get_db_session() as session:
+                statement = select(Images).filter_by(
+                    image_hash=target_emoji.file_hash,
+                    image_type=ImageType.EMOJI,
+                ).limit(1)
+                image_record = session.exec(statement).first()
+                if image_record is not None:
+                    image_record.description = target_emoji.description
+                    image_record.no_file_flag = True
+                    image_record.vlm_processed = True
+                    session.add(image_record)
+        except Exception as exc:
+            logger.error(f"[构建描述] 标记非表情包记录时出错: {exc}")
 
     def _mark_emoji_vlm_processed(self, target_emoji: MaiEmoji) -> None:
         """记录表情包已经过 VLM 处理，避免自动维护任务反复消耗识别额度。"""
@@ -1251,9 +1307,13 @@ class EmojiManager:
             return "skipped"
 
         if not target_emoji.description:
-            desc_success, target_emoji = await self.build_emoji_description(target_emoji)
+            build_status, target_emoji = await self.build_emoji_description(target_emoji)
+            if build_status == "not_emoji":
+                self._discard_non_emoji_file(target_emoji)
+                logger.info(f"[register_emoji] 判定为非表情包内容，跳过注册并移除候选文件: {file_full_path}")
+                return "skipped"
             self._mark_emoji_vlm_processed(target_emoji)
-            if not desc_success:
+            if build_status != "ok":
                 logger.error(f"[register_emoji] Failed to build emoji description: {file_full_path}")
                 return "failed"
 
