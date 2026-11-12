@@ -455,6 +455,15 @@ class ModelTaskConfig(ConfigBase):
     )
     """回复模型，影响麦麦的回复表现"""
 
+    replyer_lite: TaskConfig = Field(
+        default_factory=TaskConfig,
+        json_schema_extra={
+            "x-widget": "custom",
+            "advanced": True,
+        },
+    )
+    """轻量回复任务（anyul.reply-router 的浅档目标）：建议指向快而省的模型/低 max_tokens；留空时 reply-router 的 apply 模式不可用"""
+
     planner: TaskConfig = Field(
         default_factory=TaskConfig,
         json_schema_extra={

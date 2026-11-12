@@ -5,11 +5,14 @@ FROM python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c
 
 # Install third-party runtime dependencies in a separate stage.
 FROM base AS deps
+# Optional index override for restricted networks; empty falls back to the default index.
+ARG UV_INDEX_URL=
 COPY --from=uv /uv /bin/
 WORKDIR /MaiMBot
 COPY pyproject.toml ./
 # Place uv cache in the cache mount.
 RUN --mount=type=cache,target=/root/.cache/uv \
+    if [ -z "$UV_INDEX_URL" ]; then unset UV_INDEX_URL; fi; \
     uv sync --no-dev --no-install-project --link-mode=copy \
         --no-install-package maibot-dashboard \
         --no-install-package maibot-plugin-sdk \
@@ -44,7 +47,9 @@ COPY --from=deps /MaiMBot/.venv /MaiMBot/.venv
 COPY --from=deps /MaiMBot/uv.lock ./uv.lock
 # Install the remaining dependencies (dashboard, plugin SDK, maim-message)
 COPY pyproject.toml ./
+ARG UV_INDEX_URL=
 RUN --mount=type=cache,target=/root/.cache/uv \
+    if [ -z "$UV_INDEX_URL" ]; then unset UV_INDEX_URL; fi; \
     uv sync --no-dev --no-install-project --link-mode=copy
 
 # Copy project source

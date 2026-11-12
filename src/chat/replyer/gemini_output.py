@@ -10,7 +10,7 @@ class GeminiReplyFormatError(ValueError):
 _HEADER = r"(?:thinking\s+process|thought\s+process|思考过程|思维链)"
 _ANGLE_START = re.compile(rf"⌊\s*{_HEADER}\s*(?:⌉|[:：])", re.IGNORECASE)
 _PLAIN_START = re.compile(rf"(?:#{{1,6}}\s+)?(?:\*\*)?{_HEADER}(?:\*\*)?\s*[:：]", re.IGNORECASE)
-_XML_START = re.compile(r"<(think|thinking|analysis)>", re.IGNORECASE)
+_XML_START = re.compile(r"<(think|thinking|thought|analysis)>", re.IGNORECASE)
 _BRACKET_START = re.compile(r"\[:thought\b", re.IGNORECASE)
 
 
@@ -33,7 +33,7 @@ def normalize_gemini_reply(text: str) -> str:
             remaining = remaining[angle.end() + boundary.end():].strip()
         elif xml:
             # 配对扫描处理连续、嵌套块，未闭合时绝不把分析当正文。
-            tags = re.finditer(r"</?(?:think|thinking|analysis)>", remaining, re.IGNORECASE)
+            tags = re.finditer(r"</?(?:think|thinking|thought|analysis)>", remaining, re.IGNORECASE)
             stack = []
             end = None
             for tag in tags:

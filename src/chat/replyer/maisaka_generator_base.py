@@ -435,18 +435,36 @@ class BaseMaisakaReplyGenerator(RetroReplyPromptMixin):
         if locale.startswith("en"):
             return (
                 "Please do not output any extra content (including unnecessary prefixes or suffixes, "
-                "colons, brackets, stickers, plain at, or @). Only output the message content itself."
+                "colons, brackets, stickers, plain at, or @). Only output the message content itself. "
+                "Speak in plain colloquial text: no Markdown syntax (headings, lists, bold, code blocks) "
+                "and no numbered lists; follow the language the chat is written in. "
+                "Do not lecture, do not close with summary pleasantries, and address one topic at a time."
             )
         if locale.startswith("ru"):
-            return "Не добавляйте лишнего (вступлений, окончаний, двоеточий, скобок, стикеров, at или @); выводите только текст сообщения."
+            return (
+                "Не добавляйте лишнего (вступлений, окончаний, двоеточий, скобок, стикеров, at или @); выводите только текст сообщения. "
+                "Пишите простым разговорным текстом: без Markdown (заголовки, списки, жирный, блоки кода) и без нумерованных перечней; "
+                "язык — как у всех в чате. Без поучений и дежурных подытогов; отвечайте на одну тему за раз."
+            )
         if locale.startswith("fr"):
-            return "N’ajoutez rien de superflu (préambules, conclusions, deux-points, parenthèses, autocollants, at ou @) ; produisez uniquement le message."
+            return (
+                "N’ajoutez rien de superflu (préambules, conclusions, deux-points, parenthèses, autocollants, at ou @) ; produisez uniquement le message. "
+                "Écris en texte parlé simple : pas de Markdown (titres, listes, gras, blocs de code) ni de listes numérotées ; "
+                "suit la langue du canal. Pas de leçons ni de formules de conclusion ; un seul sujet à la fois."
+            )
         if locale.startswith("ja"):
             return (
                 "余計な内容（不要な前置きや後置き、コロン、括弧、スタンプ、通常の at や @ など）は出力せず、"
                 "発言内容だけを出力してください。"
+                "発言はプレーンな口語テキストで：Markdown（見出し、箇条書き、太字、コードブロック）や番号付きの列挙は使わず、"
+                "チャットのみんなの言語に合わせてください。"
+                "説教はせず、まとめの挨拶で締めず、一度に一つの話題だけに答えてください。"
             )
-        return "请注意不要输出多余内容(包括不必要的前后缀，冒号，括号，表情包，@等 )，只输出发言内容就好。"
+        return (
+            "请注意不要输出多余内容(包括不必要的前后缀，冒号，括号，表情包，@等 )，只输出发言内容就好。"
+            "发言用纯文本口语：不用任何 Markdown 语法（标题、列表、加粗、代码块）和序号罗列；语言跟随聊天记录里大家的语言。"
+            "不要说教，不要用总结陈词式的客套收尾；一次只回应一个话题。"
+        )
 
     @staticmethod
     def _replace_regex_capture_groups(reaction: str, match: re.Match[str]) -> str:
