@@ -629,6 +629,7 @@ class ToolResultMediaMessage(InternalContextMessage):
     tool_call_id: str = field(kw_only=True)
     session_id: str = ""
     source_kind: str = "tool_result_media"
+    tool_name: str = ""
 
     def __post_init__(self) -> None:
         if not self.tool_call_id.strip():

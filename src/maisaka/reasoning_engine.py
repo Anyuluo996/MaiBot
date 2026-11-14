@@ -1917,6 +1917,7 @@ class MaisakaReasoningEngine:
                     visible_text=visible_text,
                     timestamp=datetime.now(),
                     message_id=media_index,
+                    tool_name=str(tool_call.func_name or "").strip(),
                 )
             )
         return messages

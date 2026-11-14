@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from src.common.data_models.message_component_data_model import ImageComponent
 
 from .message_id_alias import build_alias_map, to_display_message_id
-from .messages import ContentContextMessage
+from .messages import ContentContextMessage, ToolResultMediaMessage
 
 if TYPE_CHECKING:
     from src.maisaka.runtime import MaisakaHeartFlowChatting
@@ -38,6 +38,17 @@ async def resolve_context_image(
         ),
         None,
     )
+    if context_message is None and source_id.startswith("tool_result:"):
+        # 模型偶尔用工具名代替 call_id 组索引，按 tool_result:<tool_name>:<n> 宽容匹配最近一次同名工具媒体。
+        tool_name = source_id.split(":")[1].strip() if source_id.count(":") >= 2 else ""
+        if tool_name:
+            context_message = next(
+                (
+                    message for message in reversed(runtime._chat_history)
+                    if isinstance(message, ToolResultMediaMessage) and message.tool_name == tool_name
+                ),
+                None,
+            )
     if context_message is None:
         if source_id.startswith("tool_result:"):
             raise ValueError(f"没有找到工具媒体：{reference}。请使用上下文实际提供的图片索引；文本或 SVG 源码不是图片附件。")

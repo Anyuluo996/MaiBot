@@ -199,6 +199,7 @@ def get_tool_spec(context: Optional[ToolAvailabilityContext] = None) -> ToolSpec
         "description": (
             "可选。随本次回复附加一张或多张上下文图片。每项使用 msg_id + index，"
             "或使用 media_index=tool_result:<call_id>:<item_index> 指向工具返回媒体。"
+            "工具结果文本中的图片链接会自动注册为媒体，索引以工具结果附带的 <tool_result_media_list> 为准。"
         ),
         "items": {
             "type": "object",
@@ -210,7 +211,10 @@ def get_tool_spec(context: Optional[ToolAvailabilityContext] = None) -> ToolSpec
                 },
                 "media_index": {
                     "type": "string",
-                    "description": "工具返回媒体索引，例如 tool_result:call_x:1；与 msg_id 二选一。",
+                    "description": (
+                        "工具返回媒体索引，例如 tool_result:call_x:1；与 msg_id 二选一。"
+                        "写 tool_result:<工具名>:<n> 时按最近一次该工具返回的媒体解析。"
+                    ),
                     "default": "",
                 },
                 "index": {

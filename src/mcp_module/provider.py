@@ -13,6 +13,7 @@ from src.core.tooling import (
     ToolSpec,
 )
 
+from .link_media import enrich_tool_result_with_link_images
 from .service import MCPService
 
 
@@ -55,7 +56,11 @@ class MCPToolProvider(ToolProvider):
             ToolExecutionResult: 工具执行结果。
         """
 
-        return await self._service.call_tool_invocation(invocation, context)
+        result = await self._service.call_tool_invocation(invocation, context)
+        # 成功结果中的图片链接下载注册为媒体；失败只跳过注册，不改写结果本身。
+        if result.success:
+            await enrich_tool_result_with_link_images(result)
+        return result
 
     async def close(self) -> None:
         """Runtime 不拥有共享连接，因此关闭 Provider 时无需释放服务。"""
