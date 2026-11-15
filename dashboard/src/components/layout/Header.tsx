@@ -44,6 +44,7 @@ import { ThemeProviderContext } from '@/lib/theme-context'
 import { cn } from '@/lib/utils'
 
 import { TopbarMascot } from './TopbarMascot'
+import { UserMenu } from './UserMenu'
 import type { WorkspaceMode } from './types'
 
 const LOG_WORKSPACE_COMPACT_GAP = 12
@@ -682,6 +683,9 @@ export function Header({
                 <Moon className="h-5 w-5" />
               )}
             </Button>
+
+            {/* 账号菜单：安全设置与一键登出 */}
+            <UserMenu className="relative isolate hidden border-0 bg-transparent shadow-none sm:inline-flex" />
 
             {/* 千禧风格用一颗键帽收起顶栏，取代顶栏下沿的滑条；原版风格同样改为顶栏按钮 */}
             {(themeConfig.dashboardStyle === 'millennium' || isModernStyle) && (

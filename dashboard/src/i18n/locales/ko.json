@@ -911,7 +911,38 @@
       "securityTip3": "토큰을 업데이트하면 이전 토큰이 즉시 무효화됩니다",
       "securityTip4": "안전한 환경에서 토큰을 확인하고 복사하세요",
       "securityTip5": "토큰 유출이 의심되면 즉시 재생성하거나 업데이트하세요",
-      "securityTip6": "최고의 보안을 위해 시스템 생성 토큰을 권장합니다"
+      "securityTip6": "최고의 보안을 위해 시스템 생성 토큰을 권장합니다",
+      "passkeyTitle": "패스키",
+      "passkeyDesc": "기기의 지문·얼굴·PIN으로 로그인하여 비밀번호 입력이 필요 없습니다.",
+      "passkeyAdd": "패스키 추가",
+      "passkeyEmpty": "아직 등록된 패스키가 없습니다",
+      "passkeyLoading": "패스키를 불러오는 중…",
+      "passkeyCreated": "추가일",
+      "passkeyLastUsed": "마지막 사용",
+      "passkeyNeverUsed": "사용 안 함",
+      "passkeyBackedUp": "클라우드 백업됨",
+      "passkeyRename": "이름 변경",
+      "passkeyRenameTitle": "패스키 이름 변경",
+      "passkeyRenameSave": "저장",
+      "passkeyRenameSuccess": "이름이 변경되었습니다",
+      "passkeyRenameFailed": "이름 변경 실패",
+      "passkeyDelete": "삭제",
+      "passkeyDeleteConfirmTitle": "패스키 삭제",
+      "passkeyDeleteConfirmDesc": "삭제하면 \"{{name}}\"은(는) 이 WebUI에 더 이상 로그인할 수 없습니다.",
+      "passkeyDeleting": "삭제 중…",
+      "passkeyDeleteSuccess": "패스키가 삭제되었습니다",
+      "passkeyDeleteFailed": "삭제 실패",
+      "passkeyAddTitle": "패스키 추가",
+      "passkeyAddDesc": "「등록 시작」을 누른 뒤 브라우저 안내에 따라 기기 인증을 완료하세요.",
+      "passkeyNameLabel": "기기 이름",
+      "passkeyNamePlaceholder": "예: MacBook 지문",
+      "passkeyRegistering": "인증기 대기 중…",
+      "passkeyStart": "등록 시작",
+      "passkeyAddSuccess": "패스키가 추가되었습니다",
+      "passkeyAddSuccessDesc": "다음부터 이 패스키로 로그인할 수 있습니다.",
+      "passkeyAddFailed": "등록에 실패했습니다",
+      "passkeyTryAgain": "다시 시도하세요",
+      "passkeyRetry": "다시 시도"
     },
     "other": {
       "display": "표시 설정",
@@ -1151,7 +1182,27 @@
     "verifyFailed": "Token 확인에 실패했습니다. 확인 후 다시 시도해 주세요.",
     "connFailed": "서버에 연결하지 못했습니다. 네트워크 연결을 확인해 주세요.",
     "switchToLight": "라이트 모드로 전환",
-    "switchToDark": "다크 모드로 전환"
+    "switchToDark": "다크 모드로 전환",
+    "orDivider": "또는",
+    "passkeyLogin": "패스키로 로그인",
+    "passkeyPending": "패스키 대기 중…",
+    "passkeyFailed": "패스키 인증 실패"
+  },
+  "passkey": {
+    "cancelled": "취소되었거나 시간이 초과되었습니다",
+    "invalidState": "이 패스키는 이미 등록되어 있습니다",
+    "securityError": "오리진 검증에 실패했습니다",
+    "failed": "패스키 작업에 실패했습니다",
+    "optionsFailed": "패스키 파라미터를 가져올 수 없습니다",
+    "verifyFailed": "패스키 인증에 실패했습니다",
+    "registerFailed": "패스키 등록에 실패했습니다",
+    "listFailed": "패스키 목록을 불러올 수 없습니다",
+    "deleteFailed": "패스키 삭제에 실패했습니다",
+    "renameFailed": "패스키 이름 변경에 실패했습니다"
+  },
+  "user": {
+    "menuLabel": "계정",
+    "securitySettings": "보안 설정"
   },
   "setupPage": {
     "steps": {

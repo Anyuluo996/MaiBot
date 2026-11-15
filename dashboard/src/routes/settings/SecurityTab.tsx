@@ -21,6 +21,7 @@ import { validateToken } from '@/lib/token-validator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasskeyCard } from './PasskeyCard'
 import {
   Dialog,
   DialogContent,
@@ -385,6 +386,9 @@ export function SecurityTab() {
           </Button>
         </div>
       </Card>
+
+      {/* 通行密钥管理 */}
+      <PasskeyCard />
 
       {/* 安全提示 */}
       <div className="rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/30 p-3 sm:p-4">

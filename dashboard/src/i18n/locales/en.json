@@ -958,7 +958,38 @@
       "securityTip3": "After updating, the old Token will be immediately invalidated",
       "securityTip4": "View and copy your Token only in a secure environment",
       "securityTip5": "If you suspect a Token leak, regenerate or update it immediately",
-      "securityTip6": "System-generated Tokens are recommended for maximum security"
+      "securityTip6": "System-generated Tokens are recommended for maximum security",
+      "passkeyTitle": "Passkeys",
+      "passkeyDesc": "Sign in with your device's fingerprint, face, or PIN — no password needed.",
+      "passkeyAdd": "Add a passkey",
+      "passkeyEmpty": "No passkeys registered yet",
+      "passkeyLoading": "Loading passkeys…",
+      "passkeyCreated": "Added",
+      "passkeyLastUsed": "Last used",
+      "passkeyNeverUsed": "Never used",
+      "passkeyBackedUp": "Cloud-synced",
+      "passkeyRename": "Rename",
+      "passkeyRenameTitle": "Rename passkey",
+      "passkeyRenameSave": "Save",
+      "passkeyRenameSuccess": "Name updated",
+      "passkeyRenameFailed": "Rename failed",
+      "passkeyDelete": "Delete",
+      "passkeyDeleteConfirmTitle": "Delete passkey",
+      "passkeyDeleteConfirmDesc": "After deletion, \"{{name}}\" can no longer sign in to this WebUI.",
+      "passkeyDeleting": "Deleting…",
+      "passkeyDeleteSuccess": "Passkey deleted",
+      "passkeyDeleteFailed": "Delete failed",
+      "passkeyAddTitle": "Add a passkey",
+      "passkeyAddDesc": "Click \"Start\" and follow your browser's prompt to verify on this device.",
+      "passkeyNameLabel": "Device name",
+      "passkeyNamePlaceholder": "e.g. MacBook fingerprint",
+      "passkeyRegistering": "Waiting for authenticator…",
+      "passkeyStart": "Start",
+      "passkeyAddSuccess": "Passkey added",
+      "passkeyAddSuccessDesc": "You can now sign in with this passkey.",
+      "passkeyAddFailed": "Registration failed",
+      "passkeyTryAgain": "Please try again",
+      "passkeyRetry": "Retry"
     },
     "other": {
       "display": "Display",
@@ -1198,7 +1229,27 @@
     "verifyFailed": "Token verification failed. Please check and try again.",
     "connFailed": "Failed to connect to the server. Please check your network connection.",
     "switchToLight": "Switch to light mode",
-    "switchToDark": "Switch to dark mode"
+    "switchToDark": "Switch to dark mode",
+    "orDivider": "or",
+    "passkeyLogin": "Sign in with a passkey",
+    "passkeyPending": "Waiting for passkey…",
+    "passkeyFailed": "Passkey verification failed"
+  },
+  "passkey": {
+    "cancelled": "Cancelled or timed out",
+    "invalidState": "This passkey is already registered",
+    "securityError": "Origin validation failed",
+    "failed": "Passkey operation failed",
+    "optionsFailed": "Could not fetch passkey options",
+    "verifyFailed": "Passkey verification failed",
+    "registerFailed": "Passkey registration failed",
+    "listFailed": "Could not load passkeys",
+    "deleteFailed": "Failed to delete the passkey",
+    "renameFailed": "Failed to rename the passkey"
+  },
+  "user": {
+    "menuLabel": "Account",
+    "securitySettings": "Security settings"
   },
   "setupPage": {
     "steps": {

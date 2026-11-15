@@ -1,14 +1,17 @@
 """宿主持有的 WebUI 登录凭据；旧用户首次进入宿主时由布局判定复制原密码。"""
 
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
+from webauthn.helpers import bytes_to_base64url, generate_user_handle
 
 import json
 import os
 import secrets
 import threading
 import time
+
+MAX_PASSKEYS = 16
 
 
 class HostCredentials:
@@ -87,8 +90,79 @@ class HostCredentials:
         with self._lock:
             data = {**self._data, "first_setup_completed": False}
             if reset_password:
-                data.update(access_token=secrets.token_hex(32), token_source="temporary")
+                # 打回首次配置态是失陷恢复路径：密码换成新临时值的同时必须作废全部通行密钥，
+                # 否则此前（含被恶意）注册的密钥在全新凭据下仍可直接登录。
+                data.update(access_token=secrets.token_hex(32), token_source="temporary", passkeys=[])
             self._save(data)
+
+    def webauthn_user_handle(self) -> str:
+        """WebAuthn 用户句柄：首次调用生成并固定，后续注册都归属同一用户。"""
+        with self._lock:
+            handle = self._data.get("webauthn_user_handle")
+            if isinstance(handle, str) and handle:
+                return handle
+            handle = bytes_to_base64url(generate_user_handle())
+            self._save({**self._data, "webauthn_user_handle": handle})
+            return handle
+
+    def passkeys(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return [dict(record) for record in self._data.get("passkeys", [])]
+
+    def passkey(self, credential_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            for record in self._data.get("passkeys", []):
+                if record.get("credential_id") == credential_id:
+                    return dict(record)
+            return None
+
+    def put_passkey(self, record: Dict[str, Any]) -> None:
+        with self._lock:
+            remaining = [
+                entry for entry in self._data.get("passkeys", [])
+                if entry.get("credential_id") != record["credential_id"]
+            ]
+            remaining.append(dict(record))
+            self._save({**self._data, "passkeys": remaining})
+
+    def drop_passkey(self, credential_id: str) -> bool:
+        with self._lock:
+            records = self._data.get("passkeys", [])
+            remaining = [entry for entry in records if entry.get("credential_id") != credential_id]
+            if len(remaining) == len(records):
+                return False
+            self._save({**self._data, "passkeys": remaining})
+            return True
+
+    def touch_passkey(self, credential_id: str, *, sign_count: int, backed_up: bool) -> bool:
+        """登录成功后更新签名计数与备份标记；凭据已被并发删除时返回 False 且不复活记录。"""
+        with self._lock:
+            records = self._data.get("passkeys", [])
+            updated: List[Dict[str, Any]] = []
+            changed = False
+            for record in records:
+                if record.get("credential_id") == credential_id:
+                    record = {**record, "sign_count": sign_count, "backed_up": backed_up, "last_used_at": time.time()}
+                    changed = True
+                updated.append(record)
+            if changed:
+                self._save({**self._data, "passkeys": updated})
+            return changed
+
+    def update_passkey_name(self, credential_id: str, name: str) -> bool:
+        """重命名走加锁的存在性写入，避免与并发删除交错时复活已删凭据。"""
+        with self._lock:
+            records = self._data.get("passkeys", [])
+            updated: List[Dict[str, Any]] = []
+            changed = False
+            for record in records:
+                if record.get("credential_id") == credential_id:
+                    record = {**record, "name": name}
+                    changed = True
+                updated.append(record)
+            if changed:
+                self._save({**self._data, "passkeys": updated})
+            return changed
 
 
 class LoginAttempts:

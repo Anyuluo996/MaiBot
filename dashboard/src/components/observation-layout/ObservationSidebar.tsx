@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarUpdateButton } from '@/components/layout/SidebarUpdateButton'
+import { UserMenu } from '@/components/layout/UserMenu'
 import type { MenuItem } from '@/components/layout/types'
 import { PromptWarningDot } from '@/components/ui/prompt-warning-dot'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -405,6 +406,8 @@ export function ObservationSidebar({
         >
           {actualTheme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
         </button>
+
+        <UserMenu variant="observation-key" side="top" align="start" />
 
         <KeyTooltip label={`${t('common.search')} · Ctrl K`} side={collapsed ? 'right' : 'bottom'}>
           <button

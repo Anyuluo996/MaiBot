@@ -58,7 +58,7 @@ afterEach(() => {
 
 /** 获取 token 输入框（Label htmlFor 关联到 Input#token） */
 function getTokenInput(): HTMLInputElement {
-  return screen.getByLabelText('Access Token')
+  return screen.getByLabelText('auth.tokenLabel')
 }
 
 describe('AuthPage 认证状态检查', () => {

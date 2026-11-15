@@ -958,7 +958,38 @@
       "securityTip3": "更新 Token 后，旧的 Token 将立即失效",
       "securityTip4": "请在安全的环境下查看和复制 Token",
       "securityTip5": "如果怀疑 Token 泄露，请立即重新生成或更新",
-      "securityTip6": "建议使用系统生成的 Token 以获得最高安全性"
+      "securityTip6": "建议使用系统生成的 Token 以获得最高安全性",
+      "passkeyTitle": "通行密钥",
+      "passkeyDesc": "使用设备自带的指纹、面容或 PIN 登录 WebUI，无需输入访问密码。",
+      "passkeyAdd": "添加通行密钥",
+      "passkeyEmpty": "尚未注册任何通行密钥",
+      "passkeyLoading": "正在读取通行密钥…",
+      "passkeyCreated": "添加于",
+      "passkeyLastUsed": "上次使用",
+      "passkeyNeverUsed": "从未使用",
+      "passkeyBackedUp": "已云备份",
+      "passkeyRename": "重命名",
+      "passkeyRenameTitle": "重命名通行密钥",
+      "passkeyRenameSave": "保存",
+      "passkeyRenameSuccess": "名称已更新",
+      "passkeyRenameFailed": "重命名失败",
+      "passkeyDelete": "删除",
+      "passkeyDeleteConfirmTitle": "删除通行密钥",
+      "passkeyDeleteConfirmDesc": "删除后，「{{name}}」将无法再登录此 WebUI。",
+      "passkeyDeleting": "删除中…",
+      "passkeyDeleteSuccess": "通行密钥已删除",
+      "passkeyDeleteFailed": "删除失败",
+      "passkeyAddTitle": "添加通行密钥",
+      "passkeyAddDesc": "点击「开始注册」后，按浏览器提示完成设备本机验证。",
+      "passkeyNameLabel": "设备名称",
+      "passkeyNamePlaceholder": "例如：MacBook 指纹",
+      "passkeyRegistering": "等待认证器…",
+      "passkeyStart": "开始注册",
+      "passkeyAddSuccess": "通行密钥已添加",
+      "passkeyAddSuccessDesc": "下次登录可直接使用通行密钥。",
+      "passkeyAddFailed": "注册失败",
+      "passkeyTryAgain": "请重试",
+      "passkeyRetry": "重试"
     },
     "other": {
       "display": "展示设置",
@@ -1198,7 +1229,27 @@
     "verifyFailed": "Token 验证失败，请检查后重试",
     "connFailed": "连接服务器失败，请检查网络连接",
     "switchToLight": "切换到浅色模式",
-    "switchToDark": "切换到深色模式"
+    "switchToDark": "切换到深色模式",
+    "orDivider": "或",
+    "passkeyLogin": "使用通行密钥登录",
+    "passkeyPending": "等待通行密钥认证…",
+    "passkeyFailed": "通行密钥验证失败"
+  },
+  "passkey": {
+    "cancelled": "已取消或已超时",
+    "invalidState": "该通行密钥已注册过",
+    "securityError": "页面来源校验失败",
+    "failed": "通行密钥操作失败",
+    "optionsFailed": "无法获取通行密钥参数",
+    "verifyFailed": "通行密钥验证失败",
+    "registerFailed": "通行密钥注册失败",
+    "listFailed": "无法读取通行密钥列表",
+    "deleteFailed": "删除通行密钥失败",
+    "renameFailed": "重命名通行密钥失败"
+  },
+  "user": {
+    "menuLabel": "账号",
+    "securitySettings": "安全设置"
   },
   "setupPage": {
     "steps": {

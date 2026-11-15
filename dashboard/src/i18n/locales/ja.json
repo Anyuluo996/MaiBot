@@ -958,7 +958,38 @@
       "securityTip3": "Token を更新すると、古い Token は即座に無効になります",
       "securityTip4": "安全な環境で Token を表示してコピーしてください",
       "securityTip5": "Token の漏洩が疑われる場合は、すぐに再生成または更新してください",
-      "securityTip6": "最高のセキュリティのためにシステム生成の Token を推奨します"
+      "securityTip6": "最高のセキュリティのためにシステム生成の Token を推奨します",
+      "passkeyTitle": "パスキー",
+      "passkeyDesc": "デバイスの指紋・顔・PIN でログインし、アクセス パスワードの入力が不要になります。",
+      "passkeyAdd": "パスキーを追加",
+      "passkeyEmpty": "まだパスキーが登録されていません",
+      "passkeyLoading": "パスキーを読み込み中…",
+      "passkeyCreated": "追加日",
+      "passkeyLastUsed": "最終使用",
+      "passkeyNeverUsed": "未使用",
+      "passkeyBackedUp": "クラウド同期済み",
+      "passkeyRename": "名前を変更",
+      "passkeyRenameTitle": "パスキーの名前を変更",
+      "passkeyRenameSave": "保存",
+      "passkeyRenameSuccess": "名前を更新しました",
+      "passkeyRenameFailed": "名前変更に失敗しました",
+      "passkeyDelete": "削除",
+      "passkeyDeleteConfirmTitle": "パスキーを削除",
+      "passkeyDeleteConfirmDesc": "削除すると「{{name}}」はこの WebUI にログインできなくなります。",
+      "passkeyDeleting": "削除中…",
+      "passkeyDeleteSuccess": "パスキーを削除しました",
+      "passkeyDeleteFailed": "削除に失敗しました",
+      "passkeyAddTitle": "パスキーを追加",
+      "passkeyAddDesc": "「登録開始」を押すと、ブラウザの案内に従ってデバイス認証を完了してください。",
+      "passkeyNameLabel": "デバイス名",
+      "passkeyNamePlaceholder": "例: MacBook の指紋",
+      "passkeyRegistering": "認証器を待機中…",
+      "passkeyStart": "登録開始",
+      "passkeyAddSuccess": "パスキーを追加しました",
+      "passkeyAddSuccessDesc": "次回からこのパスキーでログインできます。",
+      "passkeyAddFailed": "登録に失敗しました",
+      "passkeyTryAgain": "再試行してください",
+      "passkeyRetry": "再試行"
     },
     "other": {
       "display": "表示設定",
@@ -1198,7 +1229,27 @@
     "verifyFailed": "Token の検証に失敗しました。確認して再試行してください。",
     "connFailed": "サーバーへの接続に失敗しました。ネットワーク接続を確認してください。",
     "switchToLight": "ライトモードに切り替える",
-    "switchToDark": "ダークモードに切り替える"
+    "switchToDark": "ダークモードに切り替える",
+    "orDivider": "または",
+    "passkeyLogin": "パスキーでログイン",
+    "passkeyPending": "パスキーを待機中…",
+    "passkeyFailed": "パスキー認証に失敗しました"
+  },
+  "passkey": {
+    "cancelled": "キャンセルまたはタイムアウト",
+    "invalidState": "このパスキーは既に登録済みです",
+    "securityError": "オリジン検証に失敗しました",
+    "failed": "パスキー操作に失敗しました",
+    "optionsFailed": "パスキーのパラメータを取得できません",
+    "verifyFailed": "パスキー認証に失敗しました",
+    "registerFailed": "パスキー登録に失敗しました",
+    "listFailed": "パスキー一覧を読み込めません",
+    "deleteFailed": "パスキーの削除に失敗しました",
+    "renameFailed": "パスキーの名前変更に失敗しました"
+  },
+  "user": {
+    "menuLabel": "アカウント",
+    "securitySettings": "セキュリティ設定"
   },
   "setupPage": {
     "steps": {

@@ -6,8 +6,10 @@ import { getHostRuntime } from '@/host/state'
 import {
   AlertCircle,
   FileText,
+  Fingerprint,
   HelpCircle,
   Key,
+  Loader2,
   Lock,
   Moon,
   Sun,
@@ -30,12 +32,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useTheme } from '@/components/use-theme'
 
 import { checkAuthStatus, getSetupStatus } from '@/lib/auth'
 import { authApi } from '@/lib/http'
 import { cn } from '@/lib/utils'
 import { APP_FULL_NAME } from '@/lib/version'
+import { loginWithPasskey, passkeyLoginAvailable } from '@/lib/webauthn'
 import { readMarketInstall } from '@/lib/plugin-market-navigation'
 import { readPersonalityImport } from '@/lib/personality-import'
 
@@ -93,6 +97,8 @@ function resolvePostAuthTarget(): '/' | '/chat/embed' | '/plugins' | '/config/bo
 export function AuthPage() {
   const [token, setToken] = useState('')
   const [isValidating, setIsValidating] = useState(false)
+  const [passkeyReady, setPasskeyReady] = useState(false)
+  const [passkeyPending, setPasskeyPending] = useState(false)
   const [error, setError] = useState('')
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [connectionError, setConnectionError] = useState('')
@@ -170,6 +176,20 @@ export function AuthPage() {
     setTheme(newTheme)
   }
 
+  /** 登录成功（密码或通行密钥）后的统一去向：首次配置向导或原目标页。 */
+  const completeLogin = useCallback(
+    (data: { requires_custom_token?: boolean; is_first_setup?: boolean }) => {
+      if (data.requires_custom_token || data.is_first_setup) {
+        navigate({ to: '/setup' })
+      } else if (getHostRuntime().host) {
+        window.location.assign(resolvePostAuthTarget())
+      } else {
+        navigate({ to: resolvePostAuthTarget() })
+      }
+    },
+    [navigate]
+  )
+
   const verifyToken = useCallback(
     async (rawToken: string): Promise<boolean> => {
       const trimmed = rawToken.trim()
@@ -203,13 +223,7 @@ export function AuthPage() {
           await checkAuthStatus()
 
           // 直接使用验证响应中的 is_first_setup 字段，避免额外请求
-          if (data.requires_custom_token || data.is_first_setup) {
-            navigate({ to: '/setup' })
-          } else if (getHostRuntime().host) {
-            window.location.assign(resolvePostAuthTarget())
-          } else {
-            navigate({ to: resolvePostAuthTarget() })
-          }
+          completeLogin(data)
           return true
         }
 
@@ -224,8 +238,30 @@ export function AuthPage() {
         setIsValidating(false)
       }
     },
-    [navigate, t]
+    [completeLogin, t]
   )
+
+  /** 通行密钥登录：本机认证器完成签名后由宿主换取会话。 */
+  const handlePasskeyLogin = useCallback(async () => {
+    setError('')
+    setPasskeyPending(true)
+    try {
+      const data = await loginWithPasskey()
+      if (data.valid) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        await checkAuthStatus()
+        completeLogin(data)
+        return
+      }
+      setError(data.message || t('auth.passkeyFailed'))
+    } catch (err) {
+      // 浏览器仪式错误带的是 passkey.* 的 i18n 键，服务端错误直接展示原文。
+      const message = err instanceof Error ? err.message : ''
+      setError(message.startsWith('passkey.') ? t(message) : message || t('auth.passkeyFailed'))
+    } finally {
+      setPasskeyPending(false)
+    }
+  }, [completeLogin, t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -281,6 +317,18 @@ export function AuthPage() {
     }
   }, [navigate, extractUrlToken, stripTokenFromUrl, verifyToken, t])
 
+  // 登录表单就绪后探测通行密钥可用性（浏览器支持 + 宿主已注册过通行密钥才展示入口）。
+  useEffect(() => {
+    if (checkingAuth) return
+    let cancelled = false
+    void passkeyLoginAvailable().then((available) => {
+      if (!cancelled) setPasskeyReady(available)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [checkingAuth])
+
   // 正在检查认证状态时显示加载
   if (checkingAuth) {
     return (
@@ -329,17 +377,19 @@ export function AuthPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Token 输入框 */}
             <div className="space-y-2">
+              <Label htmlFor="token" className="text-sm text-muted-foreground">
+                {t('auth.tokenLabel')}
+              </Label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={2} fill="none" />
                 <Input
                   id="token"
-                  aria-label="Access Token"
                   type="password"
                   placeholder={t('auth.tokenPlaceholder')}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   className={cn('pl-10', error && 'border-red-500 focus-visible:ring-red-500')}
-                  disabled={isValidating}
+                  disabled={isValidating || passkeyPending}
                   ref={(element) => {
                     if (element && !tokenAutofocusedRef.current) {
                       tokenAutofocusedRef.current = true
@@ -362,7 +412,7 @@ export function AuthPage() {
             )}
 
             {/* 提交按钮 */}
-            <Button type="submit" className="w-full" disabled={isValidating}>
+            <Button type="submit" className="w-full" disabled={isValidating || passkeyPending}>
               {isValidating ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -372,6 +422,33 @@ export function AuthPage() {
                 t('auth.verifyEnter')
               )}
             </Button>
+
+            {/* 通行密钥：宿主注册过通行密钥且浏览器支持时才出现 */}
+            {passkeyReady && (
+              <>
+                <div className="flex items-center gap-3" aria-hidden="true">
+                  <div className="bg-border h-px flex-1" />
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider">
+                    {t('auth.orDivider')}
+                  </span>
+                  <div className="bg-border h-px flex-1" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={isValidating || passkeyPending}
+                  onClick={() => void handlePasskeyLogin()}
+                >
+                  {passkeyPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Fingerprint className="h-4 w-4" strokeWidth={2} fill="none" />
+                  )}
+                  {passkeyPending ? t('auth.passkeyPending') : t('auth.passkeyLogin')}
+                </Button>
+              </>
+            )}
 
             {/* 帮助文本 */}
             <Dialog>
