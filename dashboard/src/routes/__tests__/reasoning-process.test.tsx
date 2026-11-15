@@ -555,7 +555,7 @@ async function enterStage(user: ReturnType<typeof userEvent.setup>, stageName: s
 
 async function selectRecord(preview: string) {
   await userEvent.click(await screen.findByRole('button', { name: new RegExp(preview) }))
-  await screen.findByRole('button', { name: '复制' })
+  await screen.findAllByRole('button', { name: '复制' })
 }
 
 beforeEach(() => {
@@ -655,8 +655,11 @@ describe('ReasoningProcessPage 浏览筛选与分页', () => {
     renderPage()
     await enterStage(user, 'planner')
     await selectRecord('晚饭计划')
-    const card = await screen.findByRole('region', { name: '关联步骤' })
-    expect(await within(card).findByRole('button', { name: /规划器 · 当前/ })).toBeDisabled()
+    const card = (await screen.findAllByRole('region', { name: '本轮轨迹' }))[0]
+    expect(await within(card).findByRole('button', { name: /规划器/ })).toHaveAttribute(
+      'aria-current',
+      'step'
+    )
     expect(within(card).getByRole('button', { name: /记忆拉取/ })).toBeInTheDocument()
     await user.click(within(card).getByRole('button', { name: /回复器/ }))
     await waitFor(() => {
@@ -687,12 +690,10 @@ describe('ReasoningProcessPage 浏览筛选与分页', () => {
     expect(screen.getAllByText('gpt-test').length).toBeGreaterThan(0)
     expect(screen.getByText('250 ms')).toBeInTheDocument()
     expect(screen.getByText('12.3 ms')).toBeInTheDocument()
-    expect(screen.getByText('2.0 KB')).toBeInTheDocument()
-    expect(screen.getByText('512 B')).toBeInTheDocument()
     expect(screen.getAllByText('输入 10 / 输出 5 / 总计 15 Token').length).toBeGreaterThan(0)
     expect(screen.getByText('2 条记录')).toBeInTheDocument()
     expect(screen.getAllByText('未选择记录').length).toBeGreaterThan(0)
-    expect(screen.getByText('从左侧列表选择一条记录')).toBeInTheDocument()
+    expect(screen.getByText('从记录列表选择一条记录')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '类型' }))
     await screen.findByText('主流程')
@@ -700,7 +701,6 @@ describe('ReasoningProcessPage 浏览筛选与分页', () => {
     expect(await screen.findByText('回复内容预览')).toBeInTheDocument()
     expect(screen.queryByText('不该出现')).not.toBeInTheDocument()
     expect(screen.getByText('1.50 s')).toBeInTheDocument()
-    expect(screen.getByText('2.0 MB')).toBeInTheDocument()
     expect(screen.getByText('输入 8 Token')).toBeInTheDocument()
   })
 
@@ -826,12 +826,13 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
 
     expect(screen.getByText('会话ID: sess-abc')).toBeInTheDocument()
     expect(screen.getByText('调用ID: call-1')).toBeInTheDocument()
-    expect(screen.getByText('请求 Items')).toBeInTheDocument()
-    expect(screen.getByText('规划结果')).toBeInTheDocument()
-    expect(screen.getByText('工具定义 · 1 个')).toBeInTheDocument()
-    expect(screen.getByText('这条记录没有 Provider 调用诊断。')).toBeInTheDocument()
+    // 请求上下文默认折叠，展开后才能看到请求 Items；空生成尝试不再渲染诊断块
+    await user.click(screen.getAllByRole('button', { name: /请求上下文/ })[0])
+    expect(await screen.findByText('请求 Items')).toBeInTheDocument()
+    expect(screen.getAllByText('规划结果').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('工具定义 · 1 个').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: '复制' }))
+    await user.click(screen.getAllByRole('button', { name: '复制' })[0])
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('完整文本 Prompt')
     })
@@ -850,7 +851,7 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
 
     // 午饭记录也有 txt，先改成复制失败
     writeText.mockRejectedValueOnce(new Error('denied'))
-    await user.click(screen.getByRole('button', { name: '复制' }))
+    await user.click(screen.getAllByRole('button', { name: '复制' })[0])
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith({
         title: '复制失败',
@@ -860,7 +861,7 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     })
 
     writeText.mockRejectedValueOnce('blocked')
-    await user.click(screen.getByRole('button', { name: '复制' }))
+    await user.click(screen.getAllByRole('button', { name: '复制' })[0])
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith({
         title: '复制失败',
@@ -882,7 +883,7 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     await enterStage(user, 'planner')
     await selectRecord('无文本晚饭')
 
-    await user.click(screen.getByRole('button', { name: '复制' }))
+    await user.click(screen.getAllByRole('button', { name: '复制' })[0])
     await waitFor(() => {
       expect(writeText).toHaveBeenCalled()
     })
@@ -910,7 +911,7 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     await enterStage(user, 'planner')
     await selectRecord('晚饭/计划')
 
-    await user.click(screen.getByRole('button', { name: '导出' }))
+    await user.click(screen.getAllByRole('button', { name: '导出' })[0])
     await user.click(screen.getByRole('button', { name: '下载 JSON' }))
 
     await waitFor(() => {
@@ -947,7 +948,10 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     await enterStage(user, 'planner')
     await selectRecord('晚饭计划')
 
-    await user.click(await screen.findByRole('button', { name: '导出' }))
+    // 导出按钮 disabled 依赖 jsonContent 加载完成，等它可点后再打开 Popover
+    const dbgExportBtns = (await screen.findAllByRole('button', { name: '导出' }))[0]
+    await waitFor(() => expect(dbgExportBtns).toBeEnabled())
+    await user.click(dbgExportBtns)
     await user.click(await screen.findByRole('switch', { name: '抹去昵称' }))
     await user.click(await screen.findByRole('button', { name: '下载 JSON' }))
 
@@ -966,9 +970,11 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     renderPage()
     await enterStage(user, 'planner')
     await selectRecord('坏 JSON')
-    expect(await screen.findByText('没有结构化内容')).toBeInTheDocument()
+    expect((await screen.findAllByText('没有结构化内容'))[0]).toBeInTheDocument()
 
-    await user.click(await screen.findByRole('button', { name: '导出' }))
+    const exportBtn2 = (await screen.findAllByRole('button', { name: '导出' }))[0]
+    await waitFor(() => expect(exportBtn2).toBeEnabled())
+    await user.click(exportBtn2)
     await user.click(await screen.findByRole('button', { name: '下载 JSON' }))
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith({
@@ -994,14 +1000,14 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     await enterStage(user, 'planner')
 
     await user.click(await screen.findByRole('button', { name: /纯文本记录/ }))
-    expect(await screen.findByText('文本损坏')).toBeInTheDocument()
+    expect((await screen.findAllByText('文本损坏'))[0]).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /文本/ })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /结构化/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '导出' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '重放' })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: '导出' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: '重放' })[0]).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: /纯 HTML 记录/ }))
-    expect(await screen.findByTitle('推理过程 HTML 预览')).toHaveAttribute(
+    expect((await screen.findAllByTitle('推理过程 HTML 预览'))[0]).toHaveAttribute(
       'src',
       'http://html-preview/dinner.html'
     )
@@ -1030,9 +1036,9 @@ describe('ReasoningProcessPage 复制导出与预览', () => {
     await enterStage(user, 'planner')
     await user.click(await screen.findByRole('button', { name: /JSON 失败/ }))
     // json 失败时结构化页显示空态；错误文案写入 textContent，复制时会用到
-    expect(await screen.findByText('没有结构化内容')).toBeInTheDocument()
+    expect((await screen.findAllByText('没有结构化内容'))[0]).toBeInTheDocument()
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
-    await user.click(screen.getByRole('button', { name: '复制' }))
+    await user.click(screen.getAllByRole('button', { name: '复制' })[0])
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('读取结构化内容失败')
     })
@@ -1139,7 +1145,7 @@ describe('ReasoningProcessPage 重放 Items 与特殊预览', () => {
     await enterStage(user, 'planner')
     await selectRecord('晚饭计划')
 
-    await user.click(screen.getByRole('button', { name: '重放' }))
+    await user.click(screen.getAllByRole('button', { name: '重放' })[0])
     expect(await screen.findByText('编辑重放 Items')).toBeInTheDocument()
     expect(screen.getByText('2 个')).toBeInTheDocument()
     expect(screen.getByText('UserMessageItem')).toBeInTheDocument()
@@ -1162,7 +1168,7 @@ describe('ReasoningProcessPage 重放 Items 与特殊预览', () => {
     await waitFor(() => {
       expect(screen.queryByText('编辑重放 Items')).not.toBeInTheDocument()
     })
-    expect(screen.getByRole('button', { name: '重放' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '重放' })[0]).toBeInTheDocument()
   })
 
   it('离开浏览会关闭重放面板', async () => {
@@ -1170,7 +1176,7 @@ describe('ReasoningProcessPage 重放 Items 与特殊预览', () => {
     renderPage()
     await enterStage(user, 'planner')
     await selectRecord('晚饭计划')
-    await user.click(screen.getByRole('button', { name: '重放' }))
+    await user.click(screen.getAllByRole('button', { name: '重放' })[0])
     await screen.findByText('编辑重放 Items')
 
     await user.click(screen.getByRole('button', { name: '类型' }))
@@ -1186,11 +1192,11 @@ describe('ReasoningProcessPage 重放 Items 与特殊预览', () => {
     await enterStage(user, 'llm_error')
     await selectRecord('LLM 重试成功')
 
-    expect(await screen.findByLabelText('LLM 请求异常详情')).toBeInTheDocument()
-    expect(screen.getByText('重试后成功')).toBeInTheDocument()
-    expect(screen.getByText('1 次尝试')).toBeInTheDocument()
-    expect(screen.getByText('reply')).toBeInTheDocument()
-    expect(screen.getByText('not-a-date')).toBeInTheDocument()
+    expect((await screen.findAllByLabelText('LLM 请求异常详情'))[0]).toBeInTheDocument()
+    expect(screen.getAllByText('重试后成功').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('1 次尝试').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('reply').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('not-a-date').length).toBeGreaterThan(0)
     expect(screen.getAllByText('gpt-error').length).toBeGreaterThan(0)
   })
 
@@ -1200,11 +1206,13 @@ describe('ReasoningProcessPage 重放 Items 与特殊预览', () => {
     await enterStage(user, 'jargon_learning_update')
     await selectRecord('离谱黑话')
 
+    // 黑话推断调用默认折叠，展开后断言合并结果
+    await user.click(screen.getAllByRole('button', { name: /黑话推断调用/ })[0])
     expect(await screen.findByText('#1 初轮推断')).toBeInTheDocument()
     expect(screen.getByText('#2 stage_2')).toBeInTheDocument()
     expect(screen.getByText('这是什么梗')).toBeInTheDocument()
     expect(screen.getByText('再推断一次')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重放' })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: '重放' })[0]).toBeDisabled()
   })
 })
 
@@ -1304,6 +1312,6 @@ describe('ReasoningProcessPage 深链与嵌入', () => {
     await selectRecord('晚饭计划')
 
     await user.click(screen.getByRole('tab', { name: /HTML/ }))
-    expect(await screen.findByText('没有 HTML 预览')).toBeInTheDocument()
+    expect((await screen.findAllByText('没有 HTML 预览'))[0]).toBeInTheDocument()
   })
 })

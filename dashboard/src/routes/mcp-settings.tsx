@@ -1015,7 +1015,12 @@ export function MCPSettingsPage({ onBack }: { onBack?: () => void }) {
     mcpRoots.some((root) => root.enabled && !root.uri.trim())
 
   return (
-    <ScrollArea className="h-full">
+    // 手机端让表单自然撑高，由工作区统一滚动，避免内部视口拦截手势（与插件配置页同款模式）。
+    <ScrollArea
+      className="h-full max-lg:h-auto max-lg:overflow-visible max-lg:[&>[data-dashboard-scrollbar]]:hidden"
+      viewportClassName="max-lg:h-auto max-lg:!overflow-visible max-lg:overscroll-auto"
+      scrollbars="vertical"
+    >
       <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
         {onBack && (
           <Button
