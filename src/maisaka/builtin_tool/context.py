@@ -31,7 +31,7 @@ from src.core.tooling import ToolExecutionResult
 from src.core.local_operator import MAISAKA_CLI_BOT_ID
 from src.maisaka.context.image_attachment import resolve_context_image
 from src.maisaka.context.message_id_alias import build_alias_map, to_display_message_id
-from src.maisaka.context.messages import ContentContextMessage
+from src.maisaka.context.messages import ContentContextMessage, LLMContextMessage
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 
 if TYPE_CHECKING:
@@ -54,6 +54,20 @@ class ResolvedReplyAttachments:
     mentions: List[AtComponent]
     images: List[ImageComponent]
     emoji: Optional[EmojiComponent]
+
+
+RECENT_STICKER_WINDOW = 3
+"""接梗时刻判定窗口：最近这么多条上下文里出现过表情包即视为接梗场景。"""
+
+
+def recent_context_sticker_seen(chat_history: Sequence[LLMContextMessage], window: int = RECENT_STICKER_WINDOW) -> bool:
+    """最近 window 条上下文里是否出现过表情包消息（接梗时刻判定）。"""
+    for message in chat_history[-window:]:
+        if not isinstance(message, ContentContextMessage):
+            continue
+        if any(isinstance(item, EmojiComponent) for item in message.raw_message.components):
+            return True
+    return False
 
 
 class BuiltinToolRuntimeContext:
@@ -362,9 +376,11 @@ class BuiltinToolRuntimeContext:
 
     @staticmethod
     async def load_emoji_by_description(emotion: str, session_id: str, *, content: str = "") -> EmojiComponent:
+        from src.emoji_system.send_gate import check_below_similarity_floor
         from src.emoji_system.semantic_match import match_emoji_description
 
-        emoji_hash = await match_emoji_description(emotion, session_id, content=content)
+        emoji_hash, similarity = await match_emoji_description(emotion, session_id, content=content)
+        check_below_similarity_floor(session_id, similarity, global_config.emoji.emoji_min_similarity)
         return await BuiltinToolRuntimeContext.load_emoji_attachment(emoji_hash)
 
     @staticmethod

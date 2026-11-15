@@ -4496,6 +4496,51 @@ class EmojiConfig(ConfigBase):
     )
     """开启后只保存内容合适的表情。"""
 
+    emoji_chance: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "语义配图发送概率",
+                "en_US": "Semantic emoji send chance",
+                "ja_JP": "意味解析スタンプの送信確率",
+            },
+            "x-widget": "input",
+        },
+    )
+    """模型按情绪或画面描述自发配图后实际发送的概率；上下文表情引用不受此门控，近期上下文出现表情包时也直接放行。"""
+
+    emoji_min_gap_replies: int = Field(
+        default=1,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "表情包最小发言间隔",
+                "en_US": "Min replies between emojis",
+                "ja_JP": "スタンプの最小発言間隔",
+            },
+            "x-widget": "input",
+        },
+    )
+    """两条带表情包的发言之间最少间隔的 bot 发言条数；0 表示不限制。"""
+
+    emoji_min_similarity: float = Field(
+        default=0.30,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "表情匹配相似度地板",
+                "en_US": "Emoji match similarity floor",
+                "ja_JP": "スタンプ類似度の下限",
+            },
+            "x-widget": "input",
+            "advanced": True,
+        },
+    )
+    """语义匹配最高相似度低于该值时不发送表情包；0 表示不限制。"""
+
     cache_cleanup: EmojiCacheCleanupConfig = Field(default_factory=EmojiCacheCleanupConfig)
     """定期清理未注册表情包缓存，减少磁盘占用；已注册表情包不会被清理。"""
 

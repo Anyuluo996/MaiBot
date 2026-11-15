@@ -393,9 +393,22 @@ class BaseMaisakaReplyGenerator(RetroReplyPromptMixin):
                 f"当前文字回复后还会另外发送图片{self._join_chinese_items(image_targets)}。"
             )
 
-        raw_emoji = str(reply_tool_args.get("attach_emoji") or "").strip()
-        if raw_emoji:
-            lines.append(f"当前文字回复后还会单独发送已选中的第 {raw_emoji} 号表情包，无需在正文中输出序号。")
+        raw_emoji = reply_tool_args.get("attach_emoji")
+        emoji_target = ""
+        if isinstance(raw_emoji, str) and raw_emoji.strip():
+            emoji_target = f"一张按「{raw_emoji.strip()}」匹配的表情包"
+        elif isinstance(raw_emoji, dict) and not raw_emoji.keys() & {"emotion", "content"}:
+            emoji_target = f"上下文消息 {raw_emoji.get('msg_id')} 中的第 {raw_emoji.get('index', 0)} 张表情包"
+        elif isinstance(raw_emoji, dict):
+            described = [
+                f"{key}「{raw_emoji[key]}」"
+                for key in ("emotion", "content")
+                if isinstance(raw_emoji.get(key), str) and raw_emoji[key].strip()
+            ]
+            if described:
+                emoji_target = f"一张按{'与'.join(described)}匹配的表情包"
+        if emoji_target:
+            lines.append(f"当前文字回复后还会单独发送{emoji_target}，无需在正文中输出序号。")
 
         if not lines:
             return ""

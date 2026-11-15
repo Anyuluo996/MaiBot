@@ -11,11 +11,12 @@ from src.chat.replyer.replyer_manager import replyer_manager
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import get_bot_account, is_bot_self
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
-from src.common.data_models.message_component_data_model import TextComponent
+from src.common.data_models.message_component_data_model import EmojiComponent, TextComponent
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
 from src.common.llm_json import parse_llm_json
 from src.common.logger import get_logger
 from src.config import config as config_module
+from src.emoji_system.send_gate import check_semantic_send, record_bot_reply
 from src.maisaka.scenes.factory import get_scene
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.quote import decide_quote
@@ -28,7 +29,9 @@ from src.plugin_runtime.host.message_utils import PluginMessageUtils
 from src.plugin_runtime.host.reply_extensions import ReplyExtensionExecution, build_reply_extensions_schema, get_reply_extensions
 from src.services import send_service
 
-from .context import BuiltinToolRuntimeContext, PostProcessedReplyMessage, ResolvedReplyAttachments
+from .context import (
+    BuiltinToolRuntimeContext, PostProcessedReplyMessage, ResolvedReplyAttachments, recent_context_sticker_seen,
+)
 
 if TYPE_CHECKING:
     from src.maisaka.reply_supplement import ReplySupplement
@@ -227,7 +230,12 @@ def get_tool_spec(context: Optional[ToolAvailabilityContext] = None) -> ToolSpec
         "default": [],
     }
     properties["attach_emoji"] = {
-        "description": "可选。在文字后发送一张表情包。可引用上下文表情，或按情绪、画面内容匹配。省略表示不发送表情包。",
+        "description": (
+            "可选。在文字后附带一张表情包，让聊天更有真人感：轻松闲聊、调侃接梗的场合优先附带；"
+            "对方刚发表情包时优先接梗；严肃解释、技术内容、安抚情绪或长回复时不要附带。"
+            "可引用上下文表情，或按情绪、画面内容匹配。省略表示不发送表情包。"
+            "发送受频率门控，被拦截时会跳过附件并在结果中注明。"
+        ),
         "anyOf": [
             {
                 "type": "object",
@@ -365,6 +373,30 @@ async def _resolve_reply_quote(
         context=tool_ctx.runtime.get_reply_quote_context(target_message), bot_user_id=bot_user_id,
         text=text, frequency=frequency, is_group=stream.is_group_session,
     )
+
+
+def _apply_semantic_emoji_gate(tool_ctx: BuiltinToolRuntimeContext, invocation_arguments: Dict[str, Any]) -> str:
+    """对语义配图参数执行长回复/间隔/概率门控；被拦截时移除参数并返回面向模型的原因。
+
+    上下文表情引用（msg_id/index 形式）是显式接梗动作，不参与门控。
+    """
+    raw_emoji = invocation_arguments.get("attach_emoji")
+    if raw_emoji is None:
+        return ""
+    is_semantic = isinstance(raw_emoji, str) or (
+        isinstance(raw_emoji, dict) and raw_emoji.keys() & {"emotion", "content"}
+    )
+    if not is_semantic:
+        return ""
+    reason = check_semantic_send(
+        tool_ctx.runtime.session_id,
+        str(invocation_arguments.get("reply_style") or ""),
+        recent_context_sticker_seen(tool_ctx.runtime._chat_history),
+    )
+    if reason is None:
+        return ""
+    invocation_arguments.pop("attach_emoji")
+    return reason
 
 
 def _extract_guided_reply_text(message: SessionBackedMessage) -> str:
@@ -525,6 +557,7 @@ async def _execute_reply(
             return tool_ctx.build_failure_result("reply", "回复缓存模式缺少本轮 Planner 请求快照，无法生成回复。")
     if type(invocation_arguments.get("attach_emoji")) is int and invocation_arguments["attach_emoji"] == 0:
         invocation_arguments.pop("attach_emoji")
+    emoji_gate_note = _apply_semantic_emoji_gate(tool_ctx, invocation_arguments)
     reply_reference = invocation_arguments.get("reply_reference")
     if not isinstance(reply_reference, str) or not reply_reference.strip():
         return tool_ctx.build_failure_result(
@@ -909,6 +942,13 @@ async def _execute_reply(
             metadata=reply_metadata,
         )
 
+    sent_with_emoji = any(
+        isinstance(component, EmojiComponent)
+        for item in reply_items
+        for component in item.sequence.components
+    )
+    record_bot_reply(tool_ctx.runtime.session_id, sent_with_emoji)
+
     target_user_info = target_message.message_info.user_info
     bot_name = config_module.global_config.bot.nickname.strip() or "MaiSaka"
     if is_bot_self(tool_ctx.runtime.chat_stream.platform, target_user_info.user_id):
@@ -918,6 +958,12 @@ async def _execute_reply(
     else:
         target_user_name = target_user_info.user_cardname or target_user_info.user_nickname or target_user_info.user_id
         reply_receipt = f'"{bot_name}"已生成并向"{target_user_name}"发送了回复"{combined_reply_text}"'
+
+    if emoji_gate_note and not sent_with_emoji:
+        # 模型本轮显式请求了语义配图但最终没有表情随回复发出，如实告知以保持其世界模型一致；
+        # 补充器可能仍按上下文引用附了表情，此时不再注记以免回执自相矛盾。
+        reply_receipt += f"（{emoji_gate_note}）"
+        reply_metadata["emoji_gate"] = emoji_gate_note
 
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)

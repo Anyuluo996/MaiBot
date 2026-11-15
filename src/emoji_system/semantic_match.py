@@ -241,8 +241,8 @@ async def backfill_emoji_index() -> None:
             break
 
 
-async def match_emoji_description(emotion: str, session_id: str, *, content: str = "") -> str:
-    """只查询指定的维度。多个维度同时指定时对余弦相似度取平均。"""
+async def match_emoji_description(emotion: str, session_id: str, *, content: str = "") -> Tuple[str, float]:
+    """只查询指定的维度。多个维度同时指定时对余弦相似度取平均，返回 (表情哈希, 平均相似度)。"""
     queries = {axis: text.strip() for axis, text in (("emotion", emotion), ("content", content)) if text.strip()}
     if not queries:
         raise ValueError("请提供表情的情绪或画面内容。")
@@ -275,4 +275,5 @@ async def match_emoji_description(emotion: str, session_id: str, *, content: str
         totals = {key: totals[key] + score for key, score in scores.items()}
     if not totals:
         raise ValueError("当前 Embedding 模型空间中没有已索引的可用表情包。")
-    return max(totals, key=lambda key: totals[key] / len(queries))
+    best_key = max(totals, key=lambda key: totals[key] / len(queries))
+    return best_key, totals[best_key] / len(queries)

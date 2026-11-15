@@ -18,13 +18,16 @@ from src.common.llm_json import validate_llm_json
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
+from src.emoji_system.send_gate import check_semantic_send
 from src.maisaka.scenes.factory import get_scene
 from src.core.tooling import ToolAvailabilityContext
 from src.plugin_runtime.host.reply_extensions import build_reply_extensions_schema
 from src.llm_models.model_client.base_client import ResponseRequest
 from src.llm_models.payload_content.context_item import ContextItemBuilder, RoleType
 from src.llm_models.request_snapshot import serialize_tool_options_snapshot
-from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext, PostProcessedReplyMessage
+from src.maisaka.builtin_tool.context import (
+    BuiltinToolRuntimeContext, PostProcessedReplyMessage, recent_context_sticker_seen,
+)
 from src.maisaka.context.compaction import PlannerRequestSnapshot
 from src.maisaka.context.message_id_alias import to_display_message_id
 from src.maisaka.context.messages import ContentContextMessage, SessionBackedMessage
@@ -105,6 +108,8 @@ class SupplementResources:
     allow_quote: bool
     context_emojis: Dict[str, List[EmojiComponent]]
     session_id: str
+    recent_sticker_seen: bool = False
+    """最近几条上下文里是否出现过表情包消息（接梗时刻判定）。"""
 
     @classmethod
     def capture(cls, snapshot: PlannerRequestSnapshot, session_id: str, is_group: bool) -> "SupplementResources":
@@ -124,9 +129,11 @@ class SupplementResources:
                 stickers = [item for item in message.raw_message.components if isinstance(item, EmojiComponent)]
                 if stickers:
                     context_emojis[message.message_id] = stickers
+        # history 为旧到新顺序，末尾几条内出现过表情包即视为接梗时刻。
+        recent_sticker_seen = recent_context_sticker_seen(list(snapshot.history))
         scene = get_scene(is_group)
         return cls(messages, pictures, scene.allow_reply_at, scene.quote_frequency != "never",
-                   context_emojis, session_id)
+                   context_emojis, session_id, recent_sticker_seen)
 
     @staticmethod
     def resolve_id(value: str, candidates: Dict[str, Any]) -> str:
@@ -218,6 +225,14 @@ async def _resolve_supplement_attachments(
             components.append(ImageComponent(binary_hash=part.binary_hash, content=part.content,
                                              binary_data=part.binary_data))
         elif isinstance(part, EmojiNode):
+            if part.is_semantic:
+                gate_reason = check_semantic_send(resources.session_id, "", resources.recent_sticker_seen)
+                if gate_reason is not None:
+                    logger.info(
+                        f"emoji_gate decision=blocked path=supplement reason={gate_reason} "
+                        f"session={resources.session_id}"
+                    )
+                    continue
             source = "semantic" if part.is_semantic else "context"
             try:
                 if part.is_semantic:
