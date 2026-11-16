@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Dict, List, Optional, Sequence, TYPE_CHECKING
 from uuid import uuid4
 
 import asyncio
+import re
 
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import (
@@ -68,6 +69,28 @@ def recent_context_sticker_seen(chat_history: Sequence[LLMContextMessage], windo
         if any(isinstance(item, EmojiComponent) for item in message.raw_message.components):
             return True
     return False
+
+
+def strip_duplicated_at_vocative(text: str, mentions: Sequence[AtComponent]) -> str:
+    """attach_at 前缀已表明称呼对象，剥离正文开头重复的称呼，避免「@黄小炮 黄小炮，…」。
+
+    仅当称呼带 @ 标记、或其后紧跟标点/空白时才剥离；含称呼的普通词（如「黄小炮号」）不受影响。
+    """
+    stripped = text
+    for mention in mentions:
+        for name in (mention.target_user_cardname, mention.target_user_nickname):
+            if not name:
+                continue
+            escaped = re.escape(name)
+            pattern = rf"^@?<{escaped}:\d+>\s*|^@?{escaped}[，,。！？!?、～~：:\s]+"
+            match = re.match(pattern, stripped)
+            if match and stripped[match.end():].strip():
+                stripped = stripped[match.end():]
+                break
+        else:
+            continue
+        break
+    return stripped
 
 
 class BuiltinToolRuntimeContext:
@@ -486,6 +509,16 @@ class BuiltinToolRuntimeContext:
         for at_component in resolved.mentions:
             at_prefix_components.extend([at_component, TextComponent(" ")])
 
+        if at_prefix_components:
+            first_text = next(
+                (comp for comp in items[0].sequence.components if isinstance(comp, TextComponent)),
+                None,
+            )
+            if first_text is not None:
+                deduped = strip_duplicated_at_vocative(first_text.text, resolved.mentions)
+                if deduped != first_text.text:
+                    logger.info(f"attach_at 剥离正文开头重复称呼: {first_text.text!r} -> {deduped!r}")
+                    first_text.text = deduped
         items[0].sequence.components = at_prefix_components + items[0].sequence.components
         for image_component in resolved.images:
             items.append(PostProcessedReplyMessage(sequence=MessageSequence([image_component])))
