@@ -7,6 +7,9 @@ from src.maisaka.scenes.mentions import detect_text_mention, mention_context
 
 
 def detect_mentions(message: SessionMessage) -> Tuple[bool, bool, float]:
+    # 通知事件文本由适配器渲染（含 actor 名字等非聊天内容），不参与提及识别。
+    if message.is_notify:
+        return False, False, 0.0
     # 适配器的显式提及和数值提升继续兼容，但 at_bot 不代表私聊 @。
     add_cfg = message.message_info.additional_config or {}
     mentioned = bool(message.is_mentioned)

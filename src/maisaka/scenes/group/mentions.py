@@ -13,6 +13,10 @@ logger = get_logger("chat_utils")
 
 
 def detect_mentions(message: SessionMessage) -> Tuple[bool, bool, float]:
+    # 通知事件文本由适配器渲染（含 actor 群名片等非聊天内容），参与提及识别会因
+    # 别名子串撞名被误判为提及并强制触发 Planner，因此直接跳过。
+    if message.is_notify:
+        return False, False, 0.0
     context = mention_context(message)
     text, platform, current_accounts = context.text, context.platform, context.current_accounts
     reply_probability = 0.0
